@@ -32,8 +32,8 @@ public record LinkwrightConfig(Mode mode, boolean bridgeCalls, Set<String> ignor
             # mode = "off"     Do nothing.
             mode = "auto"
 
-            # Rewrite call sites whose target method changed signature, when the missing values can be
-            # found unambiguously in the calling method. Set to false to only approve exact matches.
+            # Adapt calls, field accesses and interface methods that changed shape, when there is exactly
+            # one lossless way to do it. Set to false to only approve exact matches.
             bridgeCalls = true
 
             # Rules Linkwright should never touch, written as "dependent->dependency".

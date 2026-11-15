@@ -25,19 +25,19 @@ public final class PairReport {
     public final String requiredRange;
     public final boolean alreadyOverridden;
     public final List<Problem> problems;
-    public final List<Bridge> bridges;
+    public final List<Patch> patches;
     public final int linksChecked;
     public final int unverifiable;
     public Decision decision;
 
     public PairReport(ModEntry dependent, ModEntry dependency, String requiredRange, boolean alreadyOverridden,
-                      List<Problem> problems, List<Bridge> bridges, int linksChecked, int unverifiable) {
+                      List<Problem> problems, List<Patch> patches, int linksChecked, int unverifiable) {
         this.dependent = dependent;
         this.dependency = dependency;
         this.requiredRange = requiredRange;
         this.alreadyOverridden = alreadyOverridden;
         this.problems = problems;
-        this.bridges = bridges;
+        this.patches = patches;
         this.linksChecked = linksChecked;
         this.unverifiable = unverifiable;
     }

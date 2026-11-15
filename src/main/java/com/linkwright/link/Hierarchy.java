@@ -106,6 +106,19 @@ public final class Hierarchy {
         return new ArrayList<>(found.values());
     }
 
+    /** Fields with this name visible from {@code owner}, nearest declaration first. */
+    public List<ClassInfo.Member> fieldsNamed(String owner, String name) {
+        Map<String, ClassInfo.Member> found = new LinkedHashMap<>();
+        for (ClassInfo info : ancestors(owner)) {
+            for (ClassInfo.Member f : info.fields.values()) {
+                if (f.name().equals(name)) {
+                    found.putIfAbsent(f.desc(), f);
+                }
+            }
+        }
+        return new ArrayList<>(found.values());
+    }
+
     /** Public instance methods taking no arguments and returning an object. */
     public List<ClassInfo.Member> zeroArgGetters(String owner) {
         Map<String, ClassInfo.Member> found = new LinkedHashMap<>();

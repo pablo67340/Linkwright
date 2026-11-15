@@ -1,6 +1,6 @@
 package com.linkwright;
 
-import com.linkwright.link.Bridge;
+import com.linkwright.link.Patch;
 import com.linkwright.link.BridgePatcher;
 import com.linkwright.link.PairReport;
 import com.linkwright.scan.Dist;
@@ -59,12 +59,12 @@ class BridgeEndToEndTest {
         PairReport report = analysis.result().reports().get(0);
         assertEquals(PairReport.Decision.APPROVED, report.decision, report.problems.toString());
         assertEquals(Map.of("moda", List.of("modb")), analysis.result().overrides());
-        List<Bridge> bridges = analysis.result().bridges();
-        assertEquals(2, bridges.size());
+        List<Patch> patches = analysis.result().patches();
+        assertEquals(2, patches.size());
 
         ClassNode node = new ClassNode();
         new ClassReader(modaClasses.get("a/User")).accept(node, 0);
-        assertEquals(2, BridgePatcher.apply(node, bridges));
+        assertEquals(2, BridgePatcher.apply(node, patches));
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         node.accept(writer);
 

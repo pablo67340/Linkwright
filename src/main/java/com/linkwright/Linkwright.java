@@ -1,6 +1,6 @@
 package com.linkwright;
 
-import com.linkwright.link.Bridge;
+import com.linkwright.link.Patch;
 import com.linkwright.link.ClassIndex;
 import com.linkwright.link.Hierarchy;
 import com.linkwright.link.LinkChecker;
@@ -36,9 +36,9 @@ public final class Linkwright {
 
     /**
      * @param overrides dependency removals to add to FML's overrides, by dependent mod id
-     * @param bridges   call sites to rewrite as classes load
+     * @param patches   call sites, field accesses and methods to adapt as classes load
      */
-    public record Result(Map<String, List<String>> overrides, List<Bridge> bridges, List<PairReport> reports) {
+    public record Result(Map<String, List<String>> overrides, List<Patch> patches, List<PairReport> reports) {
         public static final Result EMPTY = new Result(Map.of(), List.of(), List.of());
     }
 
@@ -84,7 +84,7 @@ public final class Linkwright {
             List<PairReport> reports = new ArrayList<>();
             Map<String, List<String>> overrides = new LinkedHashMap<>();
             Map<String, Set<String>> approvedAll = new LinkedHashMap<>();
-            List<Bridge> bridges = new ArrayList<>();
+            List<Patch> patches = new ArrayList<>();
 
             for (Unmet u : unmet) {
                 String pair = (u.dependent().modId() + "->" + u.dependency().modId());
@@ -118,11 +118,11 @@ public final class Linkwright {
                 // A rule the pack already overrides in fml.toml loads either way, so bridging whatever
                 // can be bridged only removes crashes.
                 if (config.bridgeCalls() && (approved || already)) {
-                    bridges.addAll(report.bridges);
+                    patches.addAll(report.patches);
                 }
             }
 
-            return new Analysis(new Result(overrides, List.copyOf(bridges), reports), approvedAll, mods.mods().size());
+            return new Analysis(new Result(overrides, List.copyOf(patches), reports), approvedAll, mods.mods().size());
         } finally {
             platform.forEach(ModJar::close);
         }
@@ -151,7 +151,7 @@ public final class Linkwright {
             String head = r.pairName() + " (wants " + r.requiredRange + ", found " + r.dependency.version() + ")";
             switch (r.decision) {
                 case APPROVED -> LwLog.warn("Linkwright approved " + head + ": " + r.linksChecked + " links verified"
-                        + (r.bridges.isEmpty() ? "" : ", " + r.bridges.size() + " changed call site(s) bridged"));
+                        + (r.patches.isEmpty() ? "" : ", " + r.patches.size() + " change(s) adapted"));
                 case APPROVED_FORCED -> LwLog.warn("Linkwright force-approved " + head + " despite "
                         + r.problems.size() + " problem(s); see logs/linkwright-report.txt");
                 case REFUSED -> {

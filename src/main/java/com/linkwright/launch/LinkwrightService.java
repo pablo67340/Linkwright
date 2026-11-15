@@ -71,9 +71,9 @@ public final class LinkwrightService implements ITransformationService {
 
     @Override
     public List<? extends ITransformer<?>> transformers() {
-        if (result == null || result.bridges().isEmpty()) {
+        if (result == null || result.patches().isEmpty()) {
             return List.of();
         }
-        return List.of(new BridgeTransformer(result.bridges()));
+        return List.of(new BridgeTransformer(result.patches()));
     }
 }

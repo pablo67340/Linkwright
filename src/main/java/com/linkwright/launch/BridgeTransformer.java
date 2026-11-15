@@ -1,7 +1,7 @@
 package com.linkwright.launch;
 
 import com.linkwright.LwLog;
-import com.linkwright.link.Bridge;
+import com.linkwright.link.Patch;
 import com.linkwright.link.BridgePatcher;
 import cpw.mods.modlauncher.api.ITransformer;
 import cpw.mods.modlauncher.api.ITransformerVotingContext;
@@ -17,25 +17,25 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/** Rewrites bridged call sites as their classes load. */
+/** Applies Linkwright's patches to the dependent mods' classes as they load. */
 final class BridgeTransformer implements ITransformer<ClassNode> {
-    private final Map<String, List<Bridge>> byClass = new HashMap<>();
+    private final Map<String, List<Patch>> byClass = new HashMap<>();
     private final Set<String> logged = ConcurrentHashMap.newKeySet();
 
-    BridgeTransformer(List<Bridge> bridges) {
-        for (Bridge bridge : bridges) {
-            byClass.computeIfAbsent(bridge.callerClass(), k -> new ArrayList<>()).add(bridge);
+    BridgeTransformer(List<Patch> patches) {
+        for (Patch patch : patches) {
+            byClass.computeIfAbsent(patch.targetClass(), k -> new ArrayList<>()).add(patch);
         }
     }
 
     @Override
     public ClassNode transform(ClassNode input, ITransformerVotingContext context) {
-        List<Bridge> bridges = byClass.get(input.name);
-        if (bridges != null) {
-            int patched = BridgePatcher.apply(input, bridges);
+        List<Patch> patches = byClass.get(input.name);
+        if (patches != null) {
+            int patched = BridgePatcher.apply(input, patches);
             // Mixin reads target classes through the transformers before they really load
             if (logged.add(input.name)) {
-                LwLog.info("Linkwright bridged " + patched + " call site(s) in " + input.name.replace('/', '.'));
+                LwLog.info("Linkwright adapted " + patched + " spot(s) in " + input.name.replace('/', '.'));
             }
         }
         return input;

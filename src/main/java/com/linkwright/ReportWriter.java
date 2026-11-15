@@ -1,6 +1,6 @@
 package com.linkwright;
 
-import com.linkwright.link.Bridge;
+import com.linkwright.link.Patch;
 import com.linkwright.link.PairReport;
 import com.linkwright.link.Problem;
 import com.linkwright.scan.Dist;
@@ -58,9 +58,9 @@ final class ReportWriter {
                         .append(" resolve into Minecraft, NeoForge or a library and are assumed present)");
             }
             out.append('\n');
-            if (!r.bridges.isEmpty()) {
-                out.append("  Bridged:  ").append(r.bridges.size()).append(" changed call site(s)\n");
-                for (Bridge b : r.bridges) {
+            if (!r.patches.isEmpty()) {
+                out.append("  Adapted:  ").append(r.patches.size()).append(" change(s)\n");
+                for (Patch b : r.patches) {
                     out.append("    - ").append(b.describe()).append('\n');
                 }
             }
@@ -74,7 +74,7 @@ final class ReportWriter {
                 }
                 long bridgeable = r.problems.stream().filter(p -> p.kind == Problem.Kind.MISSING_METHOD).count();
                 if (bridgeable > 0 && r.decision == PairReport.Decision.REFUSED) {
-                    out.append("    Missing methods with a reason listed could not be bridged safely.\n");
+                    out.append("    Missing methods with a reason listed could not be adapted safely.\n");
                 }
             }
             out.append('\n');
@@ -83,7 +83,7 @@ final class ReportWriter {
         if (!approved.isEmpty()) {
             out.append("To ship these approvals without Linkwright, put this line in config/fml.toml\n")
                     .append("(merge it with any dependencyOverrides line already there). This only relaxes the\n")
-                    .append("version check; bridged call sites above still need Linkwright or a hand-written patch.\n  ")
+                    .append("version check; the adapted changes above still need Linkwright or a hand-written patch.\n  ")
                     .append(FmlToml.overridesLine(approved)).append('\n');
         }
         return out.toString();

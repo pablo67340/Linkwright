@@ -27,7 +27,7 @@ import java.util.Set;
 
 /**
  * Checks that every reference from one mod's bytecode into another mod still resolves, and
- * plans bridges for method calls whose target changed signature.
+ * plans patches for method calls whose target changed signature.
  */
 public final class LinkChecker {
     /** Package roots that belong to the game, the loader or shared libraries, never to one mod. */
@@ -51,7 +51,7 @@ public final class LinkChecker {
         final Set<String> dependencyClasses;
         final Set<String> dependencyRoots;
         final Map<String, Problem> problems = new LinkedHashMap<>();
-        final Map<String, Bridge> bridges = new LinkedHashMap<>();
+        final Map<String, Patch> patches = new LinkedHashMap<>();
         int checked;
         int unverifiable;
 
@@ -118,7 +118,7 @@ public final class LinkChecker {
             scanClass(node, pass);
         }
         return new PairReport(dependent, dependency, requiredRange, alreadyOverridden,
-                new ArrayList<>(pass.problems.values()), new ArrayList<>(pass.bridges.values()),
+                new ArrayList<>(pass.problems.values()), new ArrayList<>(pass.patches.values()),
                 pass.checked, pass.unverifiable);
     }
 
@@ -153,7 +153,7 @@ public final class LinkChecker {
         if (insn instanceof MethodInsnNode call) {
             methodRef(call.owner, call.name, call.desc, where, pass, mixin ? null : node, method, call);
         } else if (insn instanceof FieldInsnNode field) {
-            fieldRef(field.owner, field.name, field.desc, where, pass);
+            fieldRef(field.owner, field.name, field.desc, where, pass, mixin ? null : node, method, field);
         } else if (insn instanceof TypeInsnNode type) {
             typeRefs(Type.getObjectType(type.desc), where, pass);
         } else if (insn instanceof MultiANewArrayInsnNode array) {
@@ -180,7 +180,7 @@ public final class LinkChecker {
             }
         } else if (constant instanceof Handle handle) {
             if (handle.getTag() <= Opcodes.H_PUTSTATIC) {
-                fieldRef(handle.getOwner(), handle.getName(), handle.getDesc(), where, pass);
+                fieldRef(handle.getOwner(), handle.getName(), handle.getDesc(), where, pass, null, null, null);
             } else {
                 methodRef(handle.getOwner(), handle.getName(), handle.getDesc(), where, pass, null, null, null);
             }
@@ -230,17 +230,17 @@ public final class LinkChecker {
                     call == null ? "referenced as a method handle, which cannot be bridged" : "called from a mixin, which cannot be bridged");
             return;
         }
-        BridgeFinder.Outcome outcome = bridgeFinder.find(caller, method, call);
+        BridgeFinder.Outcome outcome = bridgeFinder.findCall(caller, method, call);
         if (outcome instanceof BridgeFinder.Found found) {
-            Bridge bridge = found.bridge();
-            pass.bridges.putIfAbsent(bridge.callerClass() + "." + bridge.callerName() + bridge.callerDesc() + "|"
-                    + owner + "." + name + desc, bridge);
+            pass.patches.putIfAbsent(caller.name + "." + method.name + method.desc + "|" + owner + "." + name + desc,
+                    found.patch());
         } else {
             pass.problem(Problem.Kind.MISSING_METHOD, subject, where, ((BridgeFinder.NotFound) outcome).reason());
         }
     }
 
-    void fieldRef(String owner, String name, String desc, String where, Pass pass) {
+    void fieldRef(String owner, String name, String desc, String where, Pass pass,
+                  ClassNode caller, MethodNode method, FieldInsnNode access) {
         typeRefs(Type.getType(desc), where, pass);
         if (!pass.inDependency(owner)) {
             return;
@@ -251,8 +251,21 @@ public final class LinkChecker {
         }
         Hierarchy.Resolution resolution = hierarchy.resolveField(owner, name, desc);
         pass.resolution(resolution);
-        if (resolution == Hierarchy.Resolution.MISSING) {
-            pass.problem(Problem.Kind.MISSING_FIELD, owner.replace('/', '.') + "." + name + ":" + desc, where, null);
+        if (resolution != Hierarchy.Resolution.MISSING) {
+            return;
+        }
+        String subject = owner.replace('/', '.') + "." + name + ":" + desc;
+        if (caller == null) {
+            pass.problem(Problem.Kind.MISSING_FIELD, subject, where,
+                    access == null ? "referenced as a method handle, which cannot be bridged" : "used from a mixin, which cannot be bridged");
+            return;
+        }
+        BridgeFinder.Outcome outcome = bridgeFinder.findField(caller, method, access);
+        if (outcome instanceof BridgeFinder.Found found) {
+            pass.patches.putIfAbsent(caller.name + "." + method.name + method.desc + "|" + access.getOpcode() + "|" + subject,
+                    found.patch());
+        } else {
+            pass.problem(Problem.Kind.MISSING_FIELD, subject, where, ((BridgeFinder.NotFound) outcome).reason());
         }
     }
 
@@ -286,8 +299,14 @@ public final class LinkChecker {
             }
             for (ClassInfo.Member m : ancestor.methods.values()) {
                 if (m.isAbstract() && !m.isStatic() && !concrete.contains(m.name() + m.desc())) {
-                    pass.problem(Problem.Kind.UNIMPLEMENTED, ancestor.name.replace('/', '.') + "." + m.name() + m.desc(),
-                            node.name.replace('/', '.'), null);
+                    BridgeFinder.Outcome outcome = bridgeFinder.findImplementation(node, m);
+                    if (outcome instanceof BridgeFinder.Found found) {
+                        pass.patches.putIfAbsent(node.name + "|impl|" + m.name() + m.desc(), found.patch());
+                        concrete.add(m.name() + m.desc());
+                    } else {
+                        pass.problem(Problem.Kind.UNIMPLEMENTED, ancestor.name.replace('/', '.') + "." + m.name() + m.desc(),
+                                node.name.replace('/', '.'), ((BridgeFinder.NotFound) outcome).reason());
+                    }
                 }
             }
         }

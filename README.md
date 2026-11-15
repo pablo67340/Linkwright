@@ -20,14 +20,15 @@ On every launch, before NeoForge checks dependency versions, Linkwright:
    checks the dependent mod's mixins into the dependency (target classes, injector selectors,
    `@At` targets, shadows, overwrites, accessors and invokers), and that classes extending the
    dependency still implement its abstract methods.
-3. When a called method changed signature, looks for its replacement: same name, same return
-   type, the old parameters kept in order. Each added parameter has to be filled from the calling
-   method, either directly by one of its parameters or through one public getter on a parameter.
-   If exactly one source fits, the call is rewritten as the class loads. If more than one fits,
-   or none does, it is left as a problem rather than guessed at.
-4. If every link resolves or is bridged, it adds the rule to NeoForge's dependency overrides in
+3. When something the dependent mod uses changed shape, looks for exactly one safe way to adapt
+   it, and patches the dependent mod's class as it loads (see [Adapters](#adapters)). If more than
+   one adaptation fits, or none does, it is left as a problem rather than guessed at.
+4. If every link resolves or is adapted, it adds the rule to NeoForge's dependency overrides in
    memory, so the game keeps launching. Otherwise NeoForge's error stays, and the report says
    exactly what is missing.
+
+The patches are temporary by nature: they only exist in memory while the game runs, and once the
+dependent mod updates its version range, Linkwright has nothing left to do for it.
 
 Everything is written to `logs/linkwright-report.txt`, including a ready-made
 `dependencyOverrides` line for packs that want to ship the approval without Linkwright.
@@ -36,8 +37,27 @@ Everything is written to `logs/linkwright-report.txt`, including a ready-made
 
 CBC Aeronautics Missiles 0.2.0 pins Create: Radars to `[0.4.9.4, 0.5.0)`. Radars 5 changed
 `AutoTargetingHelper.isInSafeZone(Vec3, List)` to `isInSafeZone(Vec3, List, Level)`. Linkwright
-verifies the 124 other links, then bridges both calls: one passes the `ServerLevel` the calling
+verifies the 124 other links, then adapts both calls: one passes the `ServerLevel` the calling
 method already has, the other passes `NetworkView.controllerLevel()`.
+
+Power Grid 0.6.2 pins TFMG to `[1.3.0, 1.4.0)`, and TFMG 1.2.0 stores block positions as packed
+`long`s where 1.3 uses `BlockPos`. Linkwright converts the `BlockPos` Power Grid passes to
+`new ElectricBlockValues(...)` with `asLong()`, and gives Power Grid's connector the
+`long getPos()` that TFMG 1.2's `IElectric` interface requires, by delegating to its
+`BlockPos getPos()`.
+
+## Adapters
+
+| Change in the dependency | What Linkwright does |
+| --- | --- |
+| A method or constructor gained parameters, anywhere in the list | Keeps the old arguments in order and fills each new object parameter from the calling method: one of its parameters, or one public getter on a parameter |
+| A parameter, return or field type changed | Converts the value at the call site, if the conversion is lossless (below) |
+| A method now returns something where it returned `void` | Discards the result |
+| An interface or abstract class requires a method with different types | Adds that method to the dependent mod's class, delegating to its existing method of the same name |
+
+Lossless conversions: subtype to supertype, primitive widening (`int` to `long`, `float` to
+`double` and so on), boxing and unboxing, `BlockPos` and `long`, `ChunkPos` and `long`,
+`ResourceLocation` and `String`, and `Vec3i` to `BlockPos`.
 
 ## Installing
 
@@ -51,8 +71,8 @@ side checks its own mods.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `mode` | `"auto"` | `auto` approves verified rules and bridges calls; `report` only writes the report; `off` does nothing |
-| `bridgeCalls` | `true` | Rewrite calls to methods that changed signature |
+| `mode` | `"auto"` | `auto` approves verified rules and applies adapters; `report` only writes the report; `off` does nothing |
+| `bridgeCalls` | `true` | Apply adapters. When `false`, any changed link is a problem |
 | `ignore` | `[]` | Rules to leave alone, as `"dependent->dependency"` |
 | `forceApprove` | `[]` | Rules to approve even when problems are found. This can crash the game |
 
@@ -62,8 +82,10 @@ side checks its own mods.
   what it does still passes.
 - Links that lead into libraries Linkwright cannot see (for example DataFixerUpper or fastutil)
   are assumed present, and counted separately in the report.
-- Calls made from mixin classes, or through method handles, can be verified but not bridged.
-- Added `int`, `float` and other primitive parameters are never filled in.
+- Calls made from mixin classes, or through method handles, can be verified but not adapted.
+- Added `int`, `float` and other primitive parameters are never filled in, and narrowing
+  conversions (`long` to `int`, supertype to subtype) are never made.
+- Removed methods with no same-named replacement, and renamed classes, cannot be adapted.
 
 ## Building
 
