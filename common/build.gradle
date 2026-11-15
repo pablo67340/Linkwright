@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+}
+
+// The core is compiled here only as a guard: Java 8 and the oldest ASM and log4j that any port
+// runs against (Forge 1.7.10 ships ASM 5 and log4j 2.0-beta9). The ports compile these same
+// sources into their own jars.
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'org.ow2.asm:asm-debug-all:5.0.3'
+    compileOnly 'org.apache.logging.log4j:log4j-api:2.0-beta9'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 8
+    options.compilerArgs << '-Xlint:-options'
+}
+
+tasks.named('jar') {
+    enabled = false
+}

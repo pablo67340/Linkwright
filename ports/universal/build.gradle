@@ -1,0 +1,25 @@
+// Shared build logic is in the root build.gradle; settings for this port are in gradle.properties.
+
+dependencies {
+    // ModLauncher 10's service interface is binary compatible with the ModLauncher 9 and 11 that
+    // Forge 1.17-1.18 and NeoForge ship. The transformer is a reflective proxy, so it is not tied
+    // to any one version's ITransformer.
+    compileOnly 'cpw.mods:modlauncher:10.0.8'
+    compileOnly 'cpw.mods:securejarhandler:2.1.10'
+    compileOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+    compileOnly 'org.ow2.asm:asm-tree:9.7'
+    compileOnly 'org.apache.maven:maven-artifact:3.8.5'
+    compileOnly 'org.apache.logging.log4j:log4j-api:2.17.0'
+
+    testImplementation 'org.ow2.asm:asm-tree:9.7'
+    testImplementation 'org.apache.maven:maven-artifact:3.8.5'
+    testImplementation 'org.apache.logging.log4j:log4j-api:2.17.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.17.0'
+}
+
+tasks.named('compileTestJava', JavaCompile).configure {
+    options.release = 21
+}

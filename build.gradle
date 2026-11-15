@@ -1,71 +1,131 @@
 plugins {
-    id 'java'
+    id 'base'
 }
 
-group = 'com.linkwright'
-version = project.mod_version
-base.archivesName = "${project.mod_id}-${project.minecraft_version}-neoforge"
+// The root project only aggregates. Everything buildable lives in ports/<name>.
+//
+// Linkwright never touches a Minecraft class at compile time, so there is no ForgeGradle, Loom or
+// ModDevGradle here: each port compiles the shared core plus the hooks for its loaders against
+// those loaders' own APIs. `ports/universal` is one jar for every modern loader; the other ports
+// exist only because older loaders expose different interfaces.
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+def portProjects = subprojects.findAll { it.parent != null && it.parent.name == 'ports' }
 
-repositories {
-    mavenCentral()
-    maven { url 'https://maven.neoforged.net/releases' }
-}
+configure(portProjects) {
+    apply plugin: 'java'
 
-// Everything here is already on NeoForge 1.21.1's boot or service layer at runtime,
-// matching the versions the 21.1.x installer ships.
-dependencies {
-    compileOnly 'cpw.mods:modlauncher:11.0.5'
-    compileOnly 'cpw.mods:securejarhandler:3.0.8'
-    compileOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
-    compileOnly 'org.ow2.asm:asm:9.7'
-    compileOnly 'org.ow2.asm:asm-tree:9.7'
-    compileOnly 'com.electronwill.night-config:core:3.7.4'
-    compileOnly 'com.electronwill.night-config:toml:3.7.4'
-    compileOnly 'org.apache.maven:maven-artifact:3.9.9'
-    compileOnly 'org.apache.logging.log4j:log4j-api:2.22.1'
+    group = mod_group_id
+    // The universal port leaves minecraft_version blank, which also keeps it out of the jar name.
+    version = minecraft_version ? "${minecraft_version}-${mod_version}" : mod_version
 
-    testImplementation 'org.ow2.asm:asm:9.7'
-    testImplementation 'org.ow2.asm:asm-tree:9.7'
-    testImplementation 'com.electronwill.night-config:core:3.7.4'
-    testImplementation 'com.electronwill.night-config:toml:3.7.4'
-    testImplementation 'org.apache.maven:maven-artifact:3.9.9'
-    testImplementation 'org.apache.logging.log4j:log4j-api:2.22.1'
-    testImplementation 'cpw.mods:modlauncher:11.0.5'
-    testImplementation 'cpw.mods:securejarhandler:3.0.8'
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.22.1'
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.release = 21
-}
-
-processResources {
-    def props = [mod_id: project.mod_id, mod_name: project.mod_name, mod_version: project.mod_version,
-                 mod_license: project.mod_license, mod_authors: project.mod_authors]
-    inputs.properties props
-    filesMatching('META-INF/neoforge.mods.toml') { expand props }
-}
-
-jar {
-    from('LICENSE')
-    manifest.attributes(
-            'Implementation-Title': project.mod_name,
-            'Implementation-Version': project.mod_version,
-            'Automatic-Module-Name': 'linkwright'
-    )
-}
-
-test {
-    useJUnitPlatform()
-    maxHeapSize = '1G'
-    // Point at a real mods folder to run the pack scan test: -Plinkwright.testGameDir=...
-    if (project.hasProperty('linkwright.testGameDir')) {
-        systemProperty 'linkwright.testGameDir', project.property('linkwright.testGameDir')
+    base {
+        archivesName = mod_id
     }
-    testLogging { showStandardStreams = true; exceptionFormat = 'full' }
+
+    java {
+        toolchain.languageVersion = JavaLanguageVersion.of(java_toolchain as int)
+    }
+
+    repositories {
+        mavenCentral()
+        maven {
+            name = 'NeoForged'
+            url = 'https://maven.neoforged.net/releases'
+        }
+        maven {
+            name = 'MinecraftForge'
+            url = 'https://maven.minecraftforge.net/'
+            metadataSources {
+                mavenPom()
+                artifact()
+            }
+        }
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+            content { includeGroup 'net.fabricmc' }
+        }
+    }
+
+    // `platform` names the loader-specific source trees this port needs, in order, on top of the
+    // shared core.
+    def platformDirs = platform.split(',')*.trim().findAll { it }
+
+    sourceSets.main.java.srcDirs = [rootProject.file('common/src/main/java')] +
+            platformDirs.collect { rootProject.file("platform/${it}/src/main/java") } +
+            [file('src/main/java')]
+    sourceSets.main.resources.srcDirs = [rootProject.file('common/src/main/resources')] +
+            platformDirs.collect { rootProject.file("platform/${it}/src/main/resources") } +
+            [file('src/main/resources')]
+    sourceSets.test.java.srcDirs = [file('src/test/java')]
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs << '-Xlint:-options'
+    }
+    tasks.named('compileJava', JavaCompile).configure {
+        options.release = java_release as int
+        dependsOn ':common:compileJava'
+    }
+
+    tasks.named('processResources', ProcessResources).configure {
+        def replaceProperties = [
+                mod_id       : mod_id,
+                mod_name     : mod_name,
+                mod_version  : mod_version,
+                mod_license  : mod_license,
+                mod_authors  : mod_authors,
+                mod_description: mod_description,
+        ]
+        inputs.properties replaceProperties
+        filesMatching(['META-INF/mods.toml', 'META-INF/neoforge.mods.toml', 'fabric.mod.json',
+                       'quilt.mod.json', 'mcmod.info']) {
+            expand replaceProperties
+        }
+    }
+
+    tasks.named('jar', Jar).configure {
+        from(rootProject.file('LICENSE'))
+        manifest {
+            def attrs = [
+                    'Implementation-Title'  : mod_name,
+                    'Implementation-Version': mod_version,
+                    'Implementation-Vendor' : mod_authors,
+                    // Pins the module name so ModLauncher does not derive one from the file name.
+                    'Automatic-Module-Name' : mod_id,
+            ]
+            if (project.hasProperty('coremod_class')) {
+                attrs['FMLCorePlugin'] = coremod_class
+                attrs['FMLCorePluginContainsFMLMod'] = 'false'
+            }
+            if (project.hasProperty('agent_class')) {
+                attrs['Premain-Class'] = agent_class
+                attrs['Launcher-Agent-Class'] = agent_class
+            }
+            attributes(attrs)
+        }
+    }
+
+    tasks.named('test', Test).configure {
+        useJUnitPlatform()
+        maxHeapSize = '1G'
+        // Point at a real instance to run the pack scan test: -Plinkwright.testGameDir=...
+        if (project.hasProperty('linkwright.testGameDir')) {
+            systemProperty 'linkwright.testGameDir', project.property('linkwright.testGameDir')
+        }
+        testLogging { showStandardStreams = true; exceptionFormat = 'full' }
+    }
+
+    tasks.register('collectJar', Copy) {
+        dependsOn tasks.named('jar')
+        from tasks.named('jar')
+        into rootProject.layout.buildDirectory.dir('libs')
+    }
+}
+
+// `gradlew release` puts every port's jar in build/libs at the repo root.
+tasks.register('release') {
+    group = 'build'
+    description = 'Builds every port and collects the jars into build/libs.'
+    dependsOn portProjects.collect { it.tasks.named('collectJar') }
 }

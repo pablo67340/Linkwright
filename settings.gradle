@@ -1,1 +1,24 @@
-rootProject.name = 'Linkwright'
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'linkwright'
+
+// `common` is the loader-independent core, compiled on its own against the oldest APIs any port
+// runs on, so nothing newer can creep into it. Every shipped jar is a sibling project under
+// ports/: one universal jar for the modern loaders, plus one per Minecraft era whose loader
+// interfaces differ.
+include ':common'
+
+[
+    'universal',
+].each { port ->
+    include ":ports:${port}"
+    project(":ports:${port}").projectDir = file("ports/${port}")
+}
