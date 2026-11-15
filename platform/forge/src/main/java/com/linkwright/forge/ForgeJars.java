@@ -18,7 +18,7 @@ public final class ForgeJars {
         return locate(LaunchArgs.libraries(), mcVersion, mcpVersion, forgeVersion, dist);
     }
 
-    /** {@code mcpVersion} may be null: since 1.21.11 the Minecraft jars are stored under the bare game version. */
+    /** {@code mcpVersion} may be null: from 1.21.11 the Minecraft jars are stored under the bare game version. */
     public static List<Path> locate(Path libraryDir, String mcVersion, String mcpVersion, String forgeVersion, Dist dist) {
         List<Path> jars = new ArrayList<>();
         if (libraryDir == null || mcVersion == null || forgeVersion == null) {
@@ -39,7 +39,10 @@ public final class ForgeJars {
                     sideDir.resolve(mc).resolve(side + "-" + mc + "-official.jar"));
         }
         if (vanilla == null) {
-            vanilla = first(sideDir.resolve(mcVersion).resolve(side + "-" + mcVersion + "-official.jar"));
+            // 26.x ships unobfuscated, so the unpacked jar already has Mojang's names; before that it is obfuscated
+            Path dir = sideDir.resolve(mcVersion);
+            vanilla = first(dir.resolve(side + "-" + mcVersion + "-official.jar"),
+                    dir.resolve(side + "-" + mcVersion + "-unpacked.jar"));
         }
         if (vanilla != null) {
             jars.add(vanilla);
