@@ -26,11 +26,13 @@ public final class ForgePlatform implements FmlPlatform {
     private static final Set<String> PLATFORM_IDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "minecraft", "forge", "fml", "javafml", "lowcodefml", "java")));
 
+    private static final String LOADING = "net.minecraftforge.fml.loading";
+
     private final Path gameDir;
     private final Dist dist;
-    private final List<Path> platformJars;
-    private final McNames names;
-    private final ModInfoRules rules = new ModInfoRules("net.minecraftforge.fml.loading");
+    private final ModInfoRules rules = new ModInfoRules(LOADING);
+    private List<Path> platformJars;
+    private McNames names;
 
     public ForgePlatform(Path gameDir, Dist dist, String mcVersion, String forgeVersion, List<Path> platformJars) {
         this.gameDir = gameDir;
@@ -39,13 +41,34 @@ public final class ForgePlatform implements FmlPlatform {
         this.names = namesFor(mcVersion, forgeVersion);
     }
 
+    /** Versions are read once FML has them; server shims and some launchers don't pass them on the command line. */
+    private ForgePlatform(Path gameDir, Dist dist) {
+        this.gameDir = gameDir;
+        this.dist = dist;
+    }
+
     public static boolean present() {
-        return new ModInfoRules("net.minecraftforge.fml.loading").present();
+        return new ModInfoRules(LOADING).present();
     }
 
     public static ForgePlatform fromLaunch(Path gameDir, Dist dist) {
-        return new ForgePlatform(gameDir, dist, LaunchArgs.get("--fml.mcVersion"), LaunchArgs.get("--fml.forgeVersion"),
-                ForgeJars.fromLaunch(dist));
+        return new ForgePlatform(gameDir, dist);
+    }
+
+    private synchronized void resolveVersions() {
+        if (names != null) {
+            return;
+        }
+        String mc = version("mcVersion", "--fml.mcVersion");
+        String mcp = version("mcpVersion", "--fml.mcpVersion");
+        String forge = version("forgeVersion", "--fml.forgeVersion");
+        names = namesFor(mc, forge);
+        platformJars = ForgeJars.fromLaunch(dist, mc, mcp, forge);
+    }
+
+    private static String version(String property, String argument) {
+        String value = LaunchArgs.versionInfo(LOADING, property);
+        return value != null ? value : LaunchArgs.get(argument);
     }
 
     /**
@@ -111,6 +134,7 @@ public final class ForgePlatform implements FmlPlatform {
 
     @Override
     public List<Path> platformJars() {
+        resolveVersions();
         return platformJars;
     }
 
@@ -121,6 +145,7 @@ public final class ForgePlatform implements FmlPlatform {
 
     @Override
     public McNames names() {
+        resolveVersions();
         return names;
     }
 

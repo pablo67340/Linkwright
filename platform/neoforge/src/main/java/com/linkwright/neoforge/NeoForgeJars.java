@@ -1,7 +1,6 @@
 package com.linkwright.neoforge;
 
 import com.linkwright.LwLog;
-import com.linkwright.fml.LaunchArgs;
 import com.linkwright.scan.Dist;
 
 import java.nio.file.Files;
@@ -16,11 +15,6 @@ import java.util.List;
  */
 public final class NeoForgeJars {
     private NeoForgeJars() {
-    }
-
-    public static List<Path> fromLaunch(Dist dist) {
-        return locate(LaunchArgs.libraries(), LaunchArgs.get("--fml.mcVersion"), LaunchArgs.get("--fml.neoFormVersion"),
-                LaunchArgs.get("--fml.neoForgeVersion"), dist);
     }
 
     public static List<Path> locate(Path libraryDir, String mcVersion, String neoFormVersion, String neoForgeVersion, Dist dist) {

@@ -26,13 +26,15 @@ public final class NeoForgePlatform implements FmlPlatform {
     private static final Set<String> PLATFORM_IDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "minecraft", "neoforge", "forge", "fml", "javafml", "lowcodefml", "java")));
 
+    private static final String LOADING = "net.neoforged.fml.loading";
+
     private final Path gameDir;
     private final Dist dist;
-    private final List<Path> platformJars;
-    /** 20.5 moved metadata to neoforge.mods.toml and the runtime to Mojang's member names. */
-    private final boolean modern;
     private final boolean overrides = FmlOverrides.supported();
-    private final ModInfoRules rules = new ModInfoRules("net.neoforged.fml.loading");
+    private final ModInfoRules rules = new ModInfoRules(LOADING);
+    private List<Path> platformJars;
+    /** 20.5 moved metadata to neoforge.mods.toml and the runtime to Mojang's member names. */
+    private Boolean modern;
 
     public NeoForgePlatform(Path gameDir, Dist dist, String neoForgeVersion, List<Path> platformJars) {
         this.gameDir = gameDir;
@@ -41,9 +43,15 @@ public final class NeoForgePlatform implements FmlPlatform {
         this.modern = isModern(neoForgeVersion);
     }
 
+    /** Versions are read once FML has them, falling back to the launch command. */
+    private NeoForgePlatform(Path gameDir, Dist dist) {
+        this.gameDir = gameDir;
+        this.dist = dist;
+    }
+
     public static boolean present() {
         try {
-            Class.forName("net.neoforged.fml.loading.FMLLoader", false, NeoForgePlatform.class.getClassLoader());
+            Class.forName(LOADING + ".FMLLoader", false, NeoForgePlatform.class.getClassLoader());
             return true;
         } catch (Throwable t) {
             return false;
@@ -51,7 +59,22 @@ public final class NeoForgePlatform implements FmlPlatform {
     }
 
     public static NeoForgePlatform fromLaunch(Path gameDir, Dist dist) {
-        return new NeoForgePlatform(gameDir, dist, LaunchArgs.get("--fml.neoForgeVersion"), NeoForgeJars.fromLaunch(dist));
+        return new NeoForgePlatform(gameDir, dist);
+    }
+
+    private synchronized boolean modern() {
+        if (modern == null) {
+            String neoForge = version("neoForgeVersion", "--fml.neoForgeVersion");
+            modern = isModern(neoForge);
+            platformJars = NeoForgeJars.locate(LaunchArgs.libraries(), version("mcVersion", "--fml.mcVersion"),
+                    version("neoFormVersion", "--fml.neoFormVersion"), neoForge, dist);
+        }
+        return modern;
+    }
+
+    private static String version(String property, String argument) {
+        String value = LaunchArgs.versionInfo(LOADING, property);
+        return value != null ? value : LaunchArgs.get(argument);
     }
 
     static boolean isModern(String neoForgeVersion) {
@@ -96,7 +119,7 @@ public final class NeoForgePlatform implements FmlPlatform {
 
     @Override
     public List<ModReader> readers() {
-        return Collections.<ModReader>singletonList(modern
+        return Collections.<ModReader>singletonList(modern()
                 ? new ForgeTomlReader(ForgeTomlReader.NEOFORGE, false)
                 : new ForgeTomlReader(ForgeTomlReader.FORGE, true));
     }
@@ -108,6 +131,7 @@ public final class NeoForgePlatform implements FmlPlatform {
 
     @Override
     public List<Path> platformJars() {
+        modern();
         return platformJars;
     }
 
@@ -118,7 +142,7 @@ public final class NeoForgePlatform implements FmlPlatform {
 
     @Override
     public McNames names() {
-        return modern ? McNames.MOJANG : McNames.SRG;
+        return modern() ? McNames.MOJANG : McNames.SRG;
     }
 
     @Override

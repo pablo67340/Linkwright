@@ -14,38 +14,56 @@ public final class ForgeJars {
     private ForgeJars() {
     }
 
-    public static List<Path> fromLaunch(Dist dist) {
-        return locate(LaunchArgs.libraries(), LaunchArgs.get("--fml.mcVersion"), LaunchArgs.get("--fml.mcpVersion"),
-                LaunchArgs.get("--fml.forgeVersion"), dist);
+    public static List<Path> fromLaunch(Dist dist, String mcVersion, String mcpVersion, String forgeVersion) {
+        return locate(LaunchArgs.libraries(), mcVersion, mcpVersion, forgeVersion, dist);
     }
 
+    /** {@code mcpVersion} may be null: since 1.21.11 the Minecraft jars are stored under the bare game version. */
     public static List<Path> locate(Path libraryDir, String mcVersion, String mcpVersion, String forgeVersion, Dist dist) {
         List<Path> jars = new ArrayList<>();
-        if (libraryDir == null || mcVersion == null || mcpVersion == null || forgeVersion == null) {
+        if (libraryDir == null || mcVersion == null || forgeVersion == null) {
             LwLog.debug("Minecraft jars not located (libraries=" + libraryDir + ", mc=" + mcVersion + ", mcp="
                     + mcpVersion + ", forge=" + forgeVersion + "); vanilla links will be assumed present");
             return jars;
         }
         String side = dist == Dist.CLIENT ? "client" : "server";
         String forge = mcVersion + "-" + forgeVersion;
-        String mc = mcVersion + "-" + mcpVersion;
         Path forgeDir = libraryDir.resolve("net/minecraftforge/forge").resolve(forge);
-        Path mcDir = libraryDir.resolve("net/minecraft").resolve(side).resolve(mc);
+        Path sideDir = libraryDir.resolve("net/minecraft").resolve(side);
         // Patched classes first, so they shadow the vanilla copies
         add(jars, forgeDir.resolve("forge-" + forge + "-" + side + ".jar"));
-        if (!add(jars, mcDir.resolve(side + "-" + mc + "-srg.jar"))) {
-            add(jars, mcDir.resolve(side + "-" + mc + "-official.jar"));
+        Path vanilla = null;
+        if (mcpVersion != null) {
+            String mc = mcVersion + "-" + mcpVersion;
+            vanilla = first(sideDir.resolve(mc).resolve(side + "-" + mc + "-srg.jar"),
+                    sideDir.resolve(mc).resolve(side + "-" + mc + "-official.jar"));
+        }
+        if (vanilla == null) {
+            vanilla = first(sideDir.resolve(mcVersion).resolve(side + "-" + mcVersion + "-official.jar"));
+        }
+        if (vanilla != null) {
+            jars.add(vanilla);
+        } else {
+            LwLog.debug("Minecraft " + side + " jar for " + mcVersion + " not found under " + sideDir);
         }
         add(jars, forgeDir.resolve("forge-" + forge + "-universal.jar"));
         return jars;
     }
 
-    private static boolean add(List<Path> jars, Path jar) {
+    private static Path first(Path... candidates) {
+        for (Path candidate : candidates) {
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static void add(List<Path> jars, Path jar) {
         if (Files.isRegularFile(jar)) {
             jars.add(jar);
-            return true;
+        } else {
+            LwLog.debug("Expected platform jar not found: " + jar);
         }
-        LwLog.debug("Expected platform jar not found: " + jar);
-        return false;
     }
 }
