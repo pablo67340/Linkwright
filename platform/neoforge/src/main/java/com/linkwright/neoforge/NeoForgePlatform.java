@@ -1,6 +1,8 @@
 package com.linkwright.neoforge;
 
-import com.linkwright.LoaderPlatform;
+import com.linkwright.fml.FmlPlatform;
+import com.linkwright.fml.LaunchArgs;
+import com.linkwright.fml.ModInfoRules;
 import com.linkwright.link.McNames;
 import com.linkwright.maven.MavenVersions;
 import com.linkwright.scan.Dist;
@@ -16,8 +18,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** NeoForge 20.2 and later. */
-public final class NeoForgePlatform implements LoaderPlatform {
+/**
+ * NeoForge 20.2 and later on ModLauncher. FML 4 (NeoForge 21.0) and later take extra dependency
+ * overrides; before that, approved rules are relaxed in FML's discovered metadata.
+ */
+public final class NeoForgePlatform implements FmlPlatform {
     private static final Set<String> PLATFORM_IDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "minecraft", "neoforge", "forge", "fml", "javafml", "lowcodefml", "java")));
 
@@ -26,6 +31,8 @@ public final class NeoForgePlatform implements LoaderPlatform {
     private final List<Path> platformJars;
     /** 20.5 moved metadata to neoforge.mods.toml and the runtime to Mojang's member names. */
     private final boolean modern;
+    private final boolean overrides = FmlOverrides.supported();
+    private final ModInfoRules rules = new ModInfoRules("net.neoforged.fml.loading");
 
     public NeoForgePlatform(Path gameDir, Dist dist, String neoForgeVersion, List<Path> platformJars) {
         this.gameDir = gameDir;
@@ -44,8 +51,7 @@ public final class NeoForgePlatform implements LoaderPlatform {
     }
 
     public static NeoForgePlatform fromLaunch(Path gameDir, Dist dist) {
-        return new NeoForgePlatform(gameDir, dist, NeoForgeJars.launchArgument("--fml.neoForgeVersion"),
-                NeoForgeJars.fromLaunch(dist));
+        return new NeoForgePlatform(gameDir, dist, LaunchArgs.get("--fml.neoForgeVersion"), NeoForgeJars.fromLaunch(dist));
     }
 
     static boolean isModern(String neoForgeVersion) {
@@ -62,9 +68,10 @@ public final class NeoForgePlatform implements LoaderPlatform {
         }
     }
 
-    /** Whether the overrides must go in now: FML has loaded fml.toml, so its own copy will not replace ours. */
-    public boolean configLoaded() {
-        return FmlOverrides.configLoaded();
+    @Override
+    public boolean readyToRelax() {
+        // With overrides: once FML has loaded fml.toml, so its own copy will not replace ours
+        return overrides ? FmlOverrides.configLoaded() : rules.discovered();
     }
 
     @Override
@@ -121,7 +128,7 @@ public final class NeoForgePlatform implements LoaderPlatform {
 
     @Override
     public String overridesHint(Map<String, Set<String>> approved) {
-        if (!FmlOverrides.supported()) {
+        if (!overrides) {
             return null;
         }
         return "To ship these approvals without Linkwright, put this line in config/fml.toml\n"
@@ -131,7 +138,11 @@ public final class NeoForgePlatform implements LoaderPlatform {
     }
 
     @Override
-    public void relax(Map<String, List<String>> overrides) throws Exception {
-        FmlOverrides.add(overrides);
+    public void relax(Map<String, List<String>> approved) throws Exception {
+        if (overrides) {
+            FmlOverrides.add(approved);
+        } else {
+            rules.relax(approved);
+        }
     }
 }

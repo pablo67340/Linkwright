@@ -1,11 +1,11 @@
 package com.linkwright.neoforge;
 
 import com.linkwright.LwLog;
+import com.linkwright.fml.LaunchArgs;
 import com.linkwright.scan.Dist;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,13 +18,9 @@ public final class NeoForgeJars {
     private NeoForgeJars() {
     }
 
-    /** Reads the library folder and versions from the launch command, as both launchers and server scripts pass them. */
     public static List<Path> fromLaunch(Dist dist) {
-        String command = System.getProperty("sun.java.command", "");
-        String libraries = System.getProperty("libraryDirectory");
-        Path libraryDir = libraries != null ? Paths.get(libraries) : librariesFromModLauncher();
-        return locate(libraryDir, argument(command, "--fml.mcVersion"), argument(command, "--fml.neoFormVersion"),
-                argument(command, "--fml.neoForgeVersion"), dist);
+        return locate(LaunchArgs.libraries(), LaunchArgs.get("--fml.mcVersion"), LaunchArgs.get("--fml.neoFormVersion"),
+                LaunchArgs.get("--fml.neoForgeVersion"), dist);
     }
 
     public static List<Path> locate(Path libraryDir, String mcVersion, String neoFormVersion, String neoForgeVersion, Dist dist) {
@@ -49,32 +45,6 @@ public final class NeoForgeJars {
             jars.add(jar);
         } else {
             LwLog.debug("Expected platform jar not found: " + jar);
-        }
-    }
-
-    /** A {@code --name value} argument of the launch command, or {@code null}. */
-    static String launchArgument(String name) {
-        return argument(System.getProperty("sun.java.command", ""), name);
-    }
-
-    private static String argument(String command, String name) {
-        String[] parts = command.split("\\s+");
-        for (int i = 0; i + 1 < parts.length; i++) {
-            if (parts[i].equals(name)) {
-                return parts[i + 1];
-            }
-        }
-        return null;
-    }
-
-    /** ModLauncher lives at {@code <libraries>/cpw/mods/modlauncher/<version>/modlauncher-<version>.jar}. */
-    private static Path librariesFromModLauncher() {
-        try {
-            Class<?> service = Class.forName("cpw.mods.modlauncher.api.ITransformationService");
-            Path jar = Paths.get(service.getProtectionDomain().getCodeSource().getLocation().toURI());
-            return jar.getParent().getParent().getParent().getParent().getParent();
-        } catch (Throwable t) {
-            return null;
         }
     }
 }

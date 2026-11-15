@@ -2,9 +2,12 @@ package com.linkwright.launch;
 
 import com.linkwright.Linkwright;
 import com.linkwright.LwLog;
+import com.linkwright.fml.FmlPlatform;
+import com.linkwright.forge.ForgePlatform;
 import com.linkwright.neoforge.NeoForgePlatform;
 import com.linkwright.scan.Dist;
 import cpw.mods.modlauncher.api.IEnvironment;
+import cpw.mods.modlauncher.api.IModuleLayerManager;
 import cpw.mods.modlauncher.api.ITransformationService;
 import cpw.mods.modlauncher.api.ITransformer;
 
@@ -15,20 +18,22 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Linkwright's entry point on ModLauncher 9 to 11. FML finds this jar in the mods folder because
- * it declares a transformation service, and ModLauncher drives it through these phases.
+ * Linkwright's entry point on ModLauncher 9 to 11 (Forge 1.17 and later, NeoForge before 21.9).
+ * FML finds this jar in the mods folder because it declares a transformation service, and
+ * ModLauncher drives it through these phases.
  *
- * <p>ModLauncher runs every service's {@code initialize} before any service's
- * {@code beginScanning}, and visits services in the same order both times. NeoForge reads
- * {@code fml.toml} in its own {@code initialize} and sorts mods, checking dependency versions, in
- * its {@code beginScanning}. So if FML's config is already loaded when our {@code initialize}
- * runs, we are behind FML and must act now; otherwise we are ahead of it, and our
- * {@code beginScanning} is the last moment before the sort. Either way the rules are relaxed
- * before the check, and on this same boot.
+ * <p>ModLauncher runs every service's {@code initialize}, then every service's
+ * {@code beginScanning}, then every service's {@code completeScan}, visiting services in the
+ * same order each time. Whether Linkwright sits before or after FML in that order, one of these
+ * phases falls between FML becoming ready to take changed rules and FML checking them: NeoForge
+ * 21 reads {@code fml.toml} in {@code initialize} and checks in {@code beginScanning}; Forge and
+ * older NeoForge discover mods in {@code beginScanning} and check in {@code completeScan}. So each
+ * phase asks the loader whether it is ready, and the first one that is applies the rules.
  */
 public final class LinkwrightService implements ITransformationService {
-    private NeoForgePlatform platform;
+    private FmlPlatform platform;
     private Linkwright.Result result;
+    private boolean relaxed;
 
     @Override
     public String name() {
@@ -43,26 +48,35 @@ public final class LinkwrightService implements ITransformationService {
     public void initialize(IEnvironment environment) {
         Path gameDir = environment.getProperty(IEnvironment.Keys.GAMEDIR.get()).orElse(Paths.get("").toAbsolutePath());
         Dist dist = Dist.fromLaunchTarget(environment.getProperty(IEnvironment.Keys.LAUNCHTARGET.get()).orElse(null));
-        if (!NeoForgePlatform.present()) {
-            LwLog.warn("Linkwright: this loader is not supported by this build; doing nothing");
+        if (NeoForgePlatform.present()) {
+            platform = NeoForgePlatform.fromLaunch(gameDir, dist);
+        } else if (ForgePlatform.present()) {
+            platform = ForgePlatform.fromLaunch(gameDir, dist);
+        } else {
+            LwLog.warn("Linkwright: no supported loader found; doing nothing");
             result = Linkwright.Result.EMPTY;
             return;
         }
-        platform = NeoForgePlatform.fromLaunch(gameDir, dist);
-        if (platform.configLoaded()) {
-            runAndApply();
-        }
+        tryRelax();
     }
 
     @Override
     public List<Resource> beginScanning(IEnvironment environment) {
-        if (platform != null) {
-            runAndApply();
-        }
+        tryRelax();
         return Collections.emptyList();
     }
 
-    private void runAndApply() {
+    @Override
+    public List<Resource> completeScan(IModuleLayerManager layerManager) {
+        tryRelax();
+        return Collections.emptyList();
+    }
+
+    private void tryRelax() {
+        if (platform == null || relaxed || !platform.readyToRelax()) {
+            return;
+        }
+        relaxed = true;
         try {
             if (result == null) {
                 result = Linkwright.run(platform);
@@ -79,11 +93,10 @@ public final class LinkwrightService implements ITransformationService {
     }
 
     @Override
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public List transformers() {
+    public List<? extends ITransformer<?>> transformers() {
         if (result == null || result.patches.isEmpty()) {
             return Collections.emptyList();
         }
-        return Collections.<ITransformer<?>>singletonList(BridgeTransformer.create(result.patches));
+        return Collections.singletonList(new BridgeTransformer(result.patches));
     }
 }

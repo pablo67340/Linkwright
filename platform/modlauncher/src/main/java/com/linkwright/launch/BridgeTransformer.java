@@ -4,11 +4,11 @@ import com.linkwright.LwLog;
 import com.linkwright.link.BridgePatcher;
 import com.linkwright.link.Patch;
 import cpw.mods.modlauncher.api.ITransformer;
+import cpw.mods.modlauncher.api.ITransformerVotingContext;
+import cpw.mods.modlauncher.api.TargetType;
+import cpw.mods.modlauncher.api.TransformerVoteResult;
 import org.objectweb.asm.tree.ClassNode;
 
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,53 +20,23 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Applies Linkwright's patches to the dependent mods' classes as they load.
  *
- * <p>Built as a proxy because {@code ITransformer} changed between ModLauncher versions: 11 added
- * an abstract {@code getTargetType()} returning a type the older ones lack, so no single compiled
- * class implements it everywhere.
+ * <p>ModLauncher 9 and 10 tell what a transformer targets from the type argument of its
+ * {@code ITransformer} interface, so this must be a real {@code ITransformer<ClassNode>}.
+ * ModLauncher 11 asks {@link #getTargetType()} instead; older versions never call it, so its
+ * reference to a class they lack is never resolved.
  */
-final class BridgeTransformer implements InvocationHandler {
-    private static final String API = "cpw.mods.modlauncher.api.";
-
+final class BridgeTransformer implements ITransformer<ClassNode> {
     private final Map<String, List<Patch>> byClass = new HashMap<>();
     private final Set<String> logged = ConcurrentHashMap.newKeySet();
 
-    private BridgeTransformer(List<Patch> patches) {
+    BridgeTransformer(List<Patch> patches) {
         for (Patch patch : patches) {
             byClass.computeIfAbsent(patch.targetClass(), k -> new ArrayList<>()).add(patch);
         }
     }
 
-    static ITransformer<?> create(List<Patch> patches) {
-        ClassLoader loader = ITransformer.class.getClassLoader();
-        return (ITransformer<?>) Proxy.newProxyInstance(loader, new Class<?>[]{ITransformer.class},
-                new BridgeTransformer(patches));
-    }
-
     @Override
-    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        switch (method.getName()) {
-            case "transform":
-                return transform((ClassNode) args[0]);
-            case "castVote":
-                return constant("TransformerVoteResult", "YES");
-            case "targets":
-                return targets();
-            case "getTargetType":
-                return constant("TargetType", "CLASS");
-            case "labels":
-                return new String[]{"linkwright"};
-            case "hashCode":
-                return System.identityHashCode(proxy);
-            case "equals":
-                return proxy == args[0];
-            case "toString":
-                return "Linkwright bridge transformer";
-            default:
-                throw new UnsupportedOperationException(method.toString());
-        }
-    }
-
-    private ClassNode transform(ClassNode input) {
+    public ClassNode transform(ClassNode input, ITransformerVotingContext context) {
         List<Patch> patches = byClass.get(input.name);
         if (patches != null) {
             int patched = BridgePatcher.apply(input, patches);
@@ -78,17 +48,27 @@ final class BridgeTransformer implements InvocationHandler {
         return input;
     }
 
-    private Set<Object> targets() throws ReflectiveOperationException {
-        Method targetClass = Class.forName(API + "ITransformer$Target", true, ITransformer.class.getClassLoader())
-                .getMethod("targetClass", String.class);
-        Set<Object> targets = new HashSet<>();
+    @Override
+    public TransformerVoteResult castVote(ITransformerVotingContext context) {
+        return TransformerVoteResult.YES;
+    }
+
+    @Override
+    public Set<Target<ClassNode>> targets() {
+        Set<Target<ClassNode>> targets = new HashSet<>();
         for (String name : byClass.keySet()) {
-            targets.add(targetClass.invoke(null, name.replace('/', '.')));
+            targets.add(Target.targetClass(name.replace('/', '.')));
         }
         return targets;
     }
 
-    private static Object constant(String type, String name) throws ReflectiveOperationException {
-        return Class.forName(API + type, true, ITransformer.class.getClassLoader()).getField(name).get(null);
+    @Override
+    public TargetType<ClassNode> getTargetType() {
+        return TargetType.CLASS;
+    }
+
+    @Override
+    public String[] labels() {
+        return new String[]{"linkwright"};
     }
 }

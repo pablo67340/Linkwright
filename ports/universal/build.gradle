@@ -1,10 +1,14 @@
 // Shared build logic is in the root build.gradle; settings for this port are in gradle.properties.
 
+// ModLauncher 11 is published for Java 21 but only its API is compiled against here.
+java {
+    disableAutoTargetJvm()
+}
+
 dependencies {
-    // ModLauncher 10's service interface is binary compatible with the ModLauncher 9 and 11 that
-    // Forge 1.17-1.18 and NeoForge ship. The transformer is a reflective proxy, so it is not tied
-    // to any one version's ITransformer.
-    compileOnly 'cpw.mods:modlauncher:10.0.8'
+    // Compiled against ModLauncher 11; everything used here exists unchanged in 9 and 10 except
+    // ITransformer.getTargetType(), which only 11 calls.
+    compileOnly 'cpw.mods:modlauncher:11.0.5'
     compileOnly 'cpw.mods:securejarhandler:2.1.10'
     compileOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
     compileOnly 'org.jetbrains:annotations:24.1.0'
