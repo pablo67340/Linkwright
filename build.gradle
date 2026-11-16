@@ -15,8 +15,10 @@ configure(portProjects) {
     apply plugin: 'java'
 
     group = mod_group_id
-    // The universal port leaves minecraft_version blank, which also keeps it out of the jar name.
-    version = minecraft_version ? "${minecraft_version}-${mod_version}" : mod_version
+    // The jar is named after what it serves: a loader (jar_label), a Minecraft range, or nothing
+    // for the universal jar, which leaves minecraft_version blank.
+    def label = project.findProperty('jar_label') ?: minecraft_version
+    version = label ? "${label}-${mod_version}" : mod_version
 
     base {
         archivesName = mod_id

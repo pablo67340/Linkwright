@@ -2,31 +2,37 @@ package com.linkwright;
 
 /**
  * Logs through log4j, which every Minecraft version since 1.7 ships. A Java agent can run before
- * log4j is on the class path, so this falls back to standard output.
+ * log4j is on the class path, so this falls back to standard output unless the platform supplies
+ * its own logger.
  */
 public final class LwLog {
-    private static final Sink SINK = createSink();
+    private static volatile Sink sink = createSink();
 
     private LwLog() {
     }
 
     public static void info(String message) {
-        SINK.log(0, message, null);
+        sink.log(0, message, null);
     }
 
     public static void warn(String message) {
-        SINK.log(1, message, null);
+        sink.log(1, message, null);
     }
 
     public static void error(String message, Throwable t) {
-        SINK.log(2, message, t);
+        sink.log(2, message, t);
     }
 
     public static void debug(String message) {
-        SINK.log(-1, message, null);
+        sink.log(-1, message, null);
     }
 
-    private interface Sink {
+    public static void use(Sink replacement) {
+        sink = replacement;
+    }
+
+    public interface Sink {
+        /** @param level -1 debug, 0 info, 1 warn, 2 error */
         void log(int level, String message, Throwable t);
     }
 
