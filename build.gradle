@@ -45,6 +45,11 @@ configure(portProjects) {
             url = 'https://maven.fabricmc.net/'
             content { includeGroup 'net.fabricmc' }
         }
+        maven {
+            name = 'Mojang'
+            url = 'https://libraries.minecraft.net/'
+            content { includeModule 'net.minecraft', 'launchwrapper' }
+        }
     }
 
     // `platform` names the loader-specific source trees this port needs, in order, on top of the
@@ -97,6 +102,9 @@ configure(portProjects) {
             if (project.hasProperty('coremod_class')) {
                 attrs['FMLCorePlugin'] = coremod_class
                 attrs['FMLCorePluginContainsFMLMod'] = 'false'
+            }
+            if (project.hasProperty('tweak_class')) {
+                attrs['TweakClass'] = tweak_class
             }
             if (project.hasProperty('agent_class')) {
                 attrs['Premain-Class'] = agent_class

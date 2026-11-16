@@ -1,6 +1,8 @@
 package com.linkwright.link;
 
 import com.linkwright.LwLog;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 
 import java.util.ArrayList;
@@ -38,6 +40,26 @@ public final class PatchSet {
 
     public boolean targets(String internalName) {
         return byClass.containsKey(internalName);
+    }
+
+    /**
+     * Patches raw class bytes, for hooks that see bytes rather than a tree (LaunchWrapper, Java
+     * agents). Returns {@code null} when nothing changed. Frames are kept as they are, which the
+     * straight-line patches allow; maxima are recomputed.
+     */
+    public byte[] apply(String internalName, byte[] bytes) {
+        if (!byClass.containsKey(internalName)) {
+            return null;
+        }
+        ClassReader reader = new ClassReader(bytes);
+        ClassNode node = new ClassNode();
+        reader.accept(node, 0);
+        if (apply(node) == 0) {
+            return null;
+        }
+        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS);
+        node.accept(writer);
+        return writer.toByteArray();
     }
 
     /** Returns how many spots were adapted; 0 when the class has no patches. */

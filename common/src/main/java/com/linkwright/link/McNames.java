@@ -4,7 +4,7 @@ package com.linkwright.link;
  * The runtime names of the few Minecraft classes Linkwright's conversions use. Mods see
  * Minecraft under different names depending on the loader and era: Mojang's own names on
  * NeoForge 1.20.5+ and Forge 1.20.6+, Mojang class names with SRG member names on Forge 1.17 to
- * 1.20.4, MCP names on Forge 1.13 to 1.16, Fabric's intermediary names on Fabric and Quilt.
+ * 1.20.4, MCP names on Forge 1.7 to 1.16, Fabric's intermediary names on Fabric and Quilt.
  *
  * <p>Member names are only listed when they are stable. Otherwise each conversion finds its
  * method by shape (owner, static-ness, descriptor) among the indexed Minecraft classes, and is
@@ -26,9 +26,17 @@ public final class McNames {
             "net/minecraft/util/math/vector/Vector3i", "net/minecraft/util/math/ChunkPos",
             "net/minecraft/util/ResourceLocation", false);
 
-    /** Forge 1.12 to 1.15. */
+    /** Forge 1.9 to 1.15. */
     public static final McNames MCP = new McNames("net/minecraft/util/math/BlockPos", "net/minecraft/util/math/Vec3i",
             "net/minecraft/util/math/ChunkPos", "net/minecraft/util/ResourceLocation", false);
+
+    /** Forge 1.8. */
+    public static final McNames MCP_18 = new McNames("net/minecraft/util/BlockPos", "net/minecraft/util/Vec3i",
+            "net/minecraft/world/ChunkCoordIntPair", "net/minecraft/util/ResourceLocation", false);
+
+    /** Forge 1.7, before block positions had a class of their own. */
+    public static final McNames MCP_17 = new McNames(null, null, "net/minecraft/world/ChunkCoordIntPair",
+            "net/minecraft/util/ResourceLocation", false);
 
     /** Fabric and Quilt. */
     public static final McNames INTERMEDIARY = new McNames("net/minecraft/class_2338", "net/minecraft/class_2382",

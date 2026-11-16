@@ -19,6 +19,7 @@ include ':common'
 [
     'universal',
     'forge-1.13',
+    'forge-1.7',
 ].each { port ->
     include ":ports:${port}"
     project(":ports:${port}").projectDir = file("ports/${port}")

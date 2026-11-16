@@ -1,7 +1,5 @@
 package com.linkwright.link;
 
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -51,23 +49,6 @@ public final class BridgePatcher {
             }
         }
         return patched;
-    }
-
-    /**
-     * Patches raw class bytes, for hooks that see bytes rather than a tree (LaunchWrapper, Java
-     * agents). Returns {@code null} when nothing changed. Frames are kept as they are, which the
-     * straight-line patches allow; maxima are recomputed.
-     */
-    public static byte[] apply(byte[] bytes, List<? extends Patch> patches) {
-        ClassNode node = new ClassNode();
-        ClassReader reader = new ClassReader(bytes);
-        reader.accept(node, 0);
-        if (apply(node, patches) == 0) {
-            return null;
-        }
-        ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS);
-        node.accept(writer);
-        return writer.toByteArray();
     }
 
     static int applyCall(MethodNode method, Bridge bridge) {

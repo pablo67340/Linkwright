@@ -1,0 +1,9 @@
+// Shared build logic is in the root build.gradle; settings for this port are in gradle.properties.
+
+dependencies {
+    // ITweaker, IClassTransformer and LaunchClassLoader are unchanged across the LaunchWrapper era.
+    compileOnly('net.minecraft:launchwrapper:1.12') { transitive = false }
+    // The ASM and Log4j that Forge 1.7.10 ships, the oldest of the range.
+    compileOnly 'org.ow2.asm:asm-debug-all:5.0.3'
+    compileOnly 'org.apache.logging.log4j:log4j-api:2.0-beta9'
+}
