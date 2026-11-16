@@ -8,7 +8,9 @@
 
 <p>Linkwright checks whether the two mods still fit together. If they do, it lets the game start. If something small changed, it adapts it while the game loads.</p>
 
-<p>It never edits any mod files. No setup needed. Just drop it in.</p>
+<p>It never edits any mod files. On Forge and NeoForge you just drop it in. Fabric needs one extra step, explained below.</p>
+
+<p>Works on Forge, NeoForge and Fabric, from Minecraft 1.7.10 to 26.x.</p>
 
 <h2>How It Works</h2>
 
@@ -48,13 +50,43 @@
 <li><strong>It tells you everything.</strong> Every decision is written to <code>logs/linkwright-report.txt</code>.</li>
 </ul>
 
+<h2>Which File to Download</h2>
+
+<ul>
+<li><strong>Forge 1.17.1 and newer, or any NeoForge:</strong> <code>linkwright-1.1.0.jar</code></li>
+<li><strong>Forge 1.13.2 to 1.16.5:</strong> <code>linkwright-1.13-1.16.5-1.1.0.jar</code></li>
+<li><strong>Forge 1.7.10 to 1.12.2:</strong> <code>linkwright-1.7.10-1.12.2-1.1.0.jar</code></li>
+<li><strong>Fabric, any version:</strong> <code>linkwright-fabric-1.1.0.jar</code></li>
+</ul>
+
+<p>The CurseForge app picks the right one for you.</p>
+
 <h2>Installing</h2>
 
-<p>Put the jar in your <code>mods</code> folder. It works on the client, the server, or both.</p>
+<p>Put the jar in your <code>mods</code> folder. It works on the client, the server, or both. It doesn't need to match between client and server.</p>
 
-<p>Linkwright loads before other mods, so it won't show up in the in-game mod list. It doesn't need to match between client and server.</p>
+<p>Linkwright starts before other mods, so on some versions it won't show up in the in-game mod list. That is normal.</p>
 
 <p><strong>Note:</strong> your client and the server still need the same versions of your other mods to connect.</p>
+
+<h2>Fabric: One Extra Step</h2>
+
+<p>Fabric checks mod versions before any mod gets to run, so Linkwright has to start a little earlier. You do this by adding one Java argument, once.</p>
+
+<p>Add this argument:</p>
+
+<p><code>-javaagent:mods/linkwright-fabric-1.1.0.jar</code></p>
+
+<p>If your file has a different version number, change the name to match. If it doesn't work, use the full path to the file instead, and avoid spaces in the path if you can.</p>
+
+<ul>
+<li><strong>Prism Launcher or MultiMC:</strong> Edit Instance, then Settings, then the Java tab. Tick "JVM arguments" and add it there.</li>
+<li><strong>Minecraft Launcher:</strong> Installations, then Edit, then More Options. Add it to the start of JVM Arguments.</li>
+<li><strong>Other launchers:</strong> look for "JVM arguments" or "Java arguments" in the profile settings.</li>
+<li><strong>Servers:</strong> add it to your start command before <code>-jar</code>, for example <code>java -javaagent:mods/linkwright-fabric-1.1.0.jar -Xmx4G -jar fabric-server-launch.jar nogui</code></li>
+</ul>
+
+<p>To check it worked, look for lines starting with "Linkwright" in your log. If you see "Linkwright is installed but not active", the argument is missing or the file name doesn't match. The message shows the exact argument to use.</p>
 
 <h2>Settings</h2>
 
@@ -77,9 +109,12 @@
 <h2>Requirements</h2>
 
 <ul>
-<li>Minecraft 1.21.1</li>
-<li>NeoForge 21.1</li>
+<li>Forge for Minecraft 1.7.10 to 26.x</li>
+<li>NeoForge, any version</li>
+<li>Fabric Loader 0.14 or newer, for Minecraft 1.14 to 26.x</li>
 <li>No other mods needed</li>
 </ul>
+
+<p>Quilt is not supported yet.</p>
 
 <p>Found two mods Linkwright should fix but doesn't? Open an issue on <a href="https://github.com/pablo67340/Linkwright/issues">GitHub</a> and attach your <code>logs/linkwright-report.txt</code>.</p>
