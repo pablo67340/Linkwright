@@ -9,6 +9,8 @@ dependencies {
     // Compiled against ModLauncher 11; everything used here exists unchanged in 9 and 10 except
     // ITransformer.getTargetType(), which only 11 calls.
     compileOnly 'cpw.mods:modlauncher:11.0.5'
+    // FML 10's startup SPI (mod file locators, class processors), unchanged through FML 12.
+    compileOnly('net.neoforged.fancymodloader:loader:10.0.36') { transitive = false }
     compileOnly 'cpw.mods:securejarhandler:2.1.10'
     compileOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
     compileOnly 'org.jetbrains:annotations:24.1.0'

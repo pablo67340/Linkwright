@@ -28,13 +28,20 @@ public final class LaunchArgs {
     }
 
     /**
-     * A {@code String} property of FML's {@code VersionInfo} (such as {@code mcVersion}), read from
-     * {@code FMLLoader.versionInfo()} in the given loading package, or {@code null} before FML has set it.
+     * A {@code String} property of FML's {@code VersionInfo} (such as {@code mcVersion}), or
+     * {@code null} before FML has set it. FML has it as {@code FMLLoader.versionInfo()} up to
+     * NeoForge 21.8 and as {@code FMLLoader.getCurrent().getVersionInfo()} from FML 10.
      */
     public static String versionInfo(String loadingPackage, String property) {
         try {
             Class<?> loader = Class.forName(loadingPackage + ".FMLLoader");
-            Object info = loader.getMethod("versionInfo").invoke(null);
+            Object info;
+            try {
+                info = loader.getMethod("versionInfo").invoke(null);
+            } catch (NoSuchMethodException e) {
+                Object current = loader.getMethod("getCurrentOrNull").invoke(null);
+                info = current == null ? null : current.getClass().getMethod("getVersionInfo").invoke(current);
+            }
             if (info == null) {
                 return null;
             }
