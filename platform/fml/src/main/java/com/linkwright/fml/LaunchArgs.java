@@ -1,5 +1,6 @@
 package com.linkwright.fml;
 
+import java.lang.reflect.Field;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,27 +30,34 @@ public final class LaunchArgs {
 
     /**
      * A {@code String} property of FML's {@code VersionInfo} (such as {@code mcVersion}), or
-     * {@code null} before FML has set it. FML has it as {@code FMLLoader.versionInfo()} up to
-     * NeoForge 21.8 and as {@code FMLLoader.getCurrent().getVersionInfo()} from FML 10.
+     * {@code null} before FML has set it. FML has it as {@code FMLLoader.versionInfo()} from Forge
+     * 1.17 to NeoForge 21.8, as {@code FMLLoader.getCurrent().getVersionInfo()} from FML 10, and
+     * before 1.17 as a static field of {@code FMLLoader} with the property's name.
      */
     public static String versionInfo(String loadingPackage, String property) {
         try {
             Class<?> loader = Class.forName(loadingPackage + ".FMLLoader");
-            Object info;
+            Object value;
             try {
-                info = loader.getMethod("versionInfo").invoke(null);
+                value = property(loader.getMethod("versionInfo").invoke(null), property);
             } catch (NoSuchMethodException e) {
-                Object current = loader.getMethod("getCurrentOrNull").invoke(null);
-                info = current == null ? null : current.getClass().getMethod("getVersionInfo").invoke(current);
+                try {
+                    Object current = loader.getMethod("getCurrentOrNull").invoke(null);
+                    value = current == null ? null : property(current.getClass().getMethod("getVersionInfo").invoke(current), property);
+                } catch (NoSuchMethodException old) {
+                    Field field = loader.getDeclaredField(property);
+                    field.setAccessible(true);
+                    value = field.get(null);
+                }
             }
-            if (info == null) {
-                return null;
-            }
-            Object value = info.getClass().getMethod(property).invoke(info);
             return value instanceof String && !((String) value).isEmpty() ? (String) value : null;
         } catch (Throwable t) {
             return null;
         }
+    }
+
+    private static Object property(Object info, String property) throws ReflectiveOperationException {
+        return info == null ? null : info.getClass().getMethod(property).invoke(info);
     }
 
     /**
@@ -82,7 +90,7 @@ public final class LaunchArgs {
     }
 
     /** The jar behind a code source such as {@code file:/x.jar}, {@code jar:file:/x.jar!/} or {@code union:/x.jar%2312!/}. */
-    static Path jarFile(String location) throws Exception {
+    public static Path jarFile(String location) throws Exception {
         String s = location;
         if (s.startsWith("jar:")) {
             s = s.substring(4);

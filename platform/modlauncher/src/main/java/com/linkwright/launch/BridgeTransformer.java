@@ -1,21 +1,16 @@
 package com.linkwright.launch;
 
-import com.linkwright.LwLog;
-import com.linkwright.link.BridgePatcher;
 import com.linkwright.link.Patch;
+import com.linkwright.link.PatchSet;
 import cpw.mods.modlauncher.api.ITransformer;
 import cpw.mods.modlauncher.api.ITransformerVotingContext;
 import cpw.mods.modlauncher.api.TargetType;
 import cpw.mods.modlauncher.api.TransformerVoteResult;
 import org.objectweb.asm.tree.ClassNode;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Applies Linkwright's patches to the dependent mods' classes as they load.
@@ -26,25 +21,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * reference to a class they lack is never resolved.
  */
 final class BridgeTransformer implements ITransformer<ClassNode> {
-    private final Map<String, List<Patch>> byClass = new HashMap<>();
-    private final Set<String> logged = ConcurrentHashMap.newKeySet();
+    private final PatchSet patches;
 
     BridgeTransformer(List<Patch> patches) {
-        for (Patch patch : patches) {
-            byClass.computeIfAbsent(patch.targetClass(), k -> new ArrayList<>()).add(patch);
-        }
+        this.patches = new PatchSet(patches);
     }
 
     @Override
     public ClassNode transform(ClassNode input, ITransformerVotingContext context) {
-        List<Patch> patches = byClass.get(input.name);
-        if (patches != null) {
-            int patched = BridgePatcher.apply(input, patches);
-            // Mixin reads target classes through the transformers before they really load
-            if (logged.add(input.name)) {
-                LwLog.info("Linkwright adapted " + patched + " spot(s) in " + input.name.replace('/', '.'));
-            }
-        }
+        patches.apply(input);
         return input;
     }
 
@@ -56,7 +41,7 @@ final class BridgeTransformer implements ITransformer<ClassNode> {
     @Override
     public Set<Target<ClassNode>> targets() {
         Set<Target<ClassNode>> targets = new HashSet<>();
-        for (String name : byClass.keySet()) {
+        for (String name : patches.targetClasses()) {
             targets.add(Target.targetClass(name.replace('/', '.')));
         }
         return targets;

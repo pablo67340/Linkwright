@@ -59,14 +59,22 @@ public final class ModInfoRules {
         return (List<?>) field(validator.getClass(), "candidateMods").get(validator);
     }
 
-    /** Returns how many rules were relaxed. */
+    /** Relaxes the mods held by {@code FMLLoader.modValidator}; returns how many rules were relaxed. */
     public int relax(Map<String, List<String>> overrides) throws ReflectiveOperationException {
         List<?> candidates = candidates();
         if (candidates == null) {
             throw new IllegalStateException("FML has not discovered mods yet");
         }
+        return relax(candidates, overrides);
+    }
+
+    /** Relaxes the given FML mod files, skipping any whose metadata is not read yet; returns how many rules were relaxed. */
+    public int relax(Iterable<?> modFiles, Map<String, List<String>> overrides) throws ReflectiveOperationException {
         int relaxed = 0;
-        for (Object modFile : candidates) {
+        for (Object modFile : modFiles) {
+            if (!identified(modFile)) {
+                continue;
+            }
             for (Object info : (List<?>) call(modFile, "getModInfos")) {
                 List<String> dependencies = overrides.get((String) call(info, "getModId"));
                 if (dependencies != null) {
@@ -78,6 +86,15 @@ public final class ModInfoRules {
             LwLog.info("Linkwright relaxed " + relaxed + " dependency rule(s) in FML: " + overrides);
         }
         return relaxed;
+    }
+
+    /** Before Forge 1.17, a located mod file has no metadata until FML identifies its mods. */
+    private static boolean identified(Object modFile) throws ReflectiveOperationException {
+        try {
+            return call(modFile, "getModFileInfo") != null;
+        } catch (NoSuchMethodException e) {
+            return true;
+        }
     }
 
     private int relaxInfo(Object info, List<String> dependencies) throws ReflectiveOperationException {
@@ -173,7 +190,7 @@ public final class ModInfoRules {
         }
     }
 
-    private static Field field(Class<?> type, String name) throws NoSuchFieldException {
+    static Field field(Class<?> type, String name) throws NoSuchFieldException {
         for (Class<?> c = type; c != null; c = c.getSuperclass()) {
             try {
                 Field f = c.getDeclaredField(name);
@@ -186,7 +203,7 @@ public final class ModInfoRules {
     }
 
     /** Calls a public no-argument method, even when it is declared on a class that is not public. */
-    private static Object call(Object target, String name) throws ReflectiveOperationException {
+    static Object call(Object target, String name) throws ReflectiveOperationException {
         Method method = target.getClass().getMethod(name);
         method.setAccessible(true);
         return method.invoke(target);
