@@ -1,92 +1,85 @@
 <p style="text-align: center;"><img src="https://raw.githubusercontent.com/pablo67340/Linkwright/main/branding/banner.png" alt="Linkwright" width="820"></p>
 
-<h2>Linkwright &mdash; Keeps your mods linked when versions drift</h2>
+<h2>Linkwright</h2>
 
-<p><strong>Tired of a pack refusing to start because one mod wants version 1.3 of another and you have 1.2?</strong></p>
+<p><strong>Your pack won't start because one mod wants version 1.3 of another, and you have 1.2?</strong> Linkwright fixes that.</p>
 
-<p>Mods often pin the exact version range of another mod they integrate with. The moment that other mod updates, NeoForge stops the game with <em>"Mod X requires Y 1.3.0 or above, and below 1.4.0"</em> &mdash; even when the code the first mod actually uses is unchanged, or changed in a way that's trivial to bridge.</p>
+<p>Many mods only accept one exact version range of another mod. When that mod updates, the game refuses to start, even if nothing important changed.</p>
 
-<p><strong>Linkwright checks the real code links between the two mods, lets the game launch when they line up, and patches the small differences in memory as the classes load.</strong> It's a temporary bridge: it keeps your mods working until their authors update, and once they do, Linkwright simply has nothing left to do.</p>
+<p>Linkwright checks whether the two mods still fit together. If they do, it lets the game start. If something small changed, it adapts it while the game loads.</p>
 
-<p>Nothing is ever written to any mod's jar. No configuration needed. Just drop it in.</p>
+<p>It never edits any mod files. No setup needed. Just drop it in.</p>
 
-<hr>
+<h2>How It Works</h2>
 
-<h2>&#10022; How It Works</h2>
-
-<p>On every launch, <em>before</em> NeoForge checks dependency versions, Linkwright:</p>
+<p>Every time the game starts, Linkwright:</p>
 
 <ol>
-<li><strong>Finds the broken rules.</strong> Reads every mod's <code>neoforge.mods.toml</code> (including jar-in-jar mods) and lists the mod-to-mod version rules that aren't met. Rules about Minecraft and NeoForge themselves are never touched.</li>
-<li><strong>Checks every link.</strong> Walks the dependent mod's bytecode and resolves every class, method and field it uses in the other mod, through inheritance all the way into Minecraft and NeoForge. Mixins into the dependency are checked too: targets, injectors, <code>@At</code> targets, shadows, accessors and invokers.</li>
-<li><strong>Adapts what changed.</strong> When something changed shape, it looks for <em>exactly one</em> safe way to adapt it and patches the dependent mod's class as it loads.</li>
-<li><strong>Approves or refuses.</strong> If every link checks out, the rule is approved and the game launches. If anything is missing, NeoForge's normal error stays &mdash; and the report tells you exactly what's missing and why.</li>
+<li>Finds mod version rules that aren't met.</li>
+<li>Checks every class, method and field one mod uses from the other, including mixins.</li>
+<li>Adapts small changes, but only when there is exactly one safe way to do it.</li>
+<li>Lets the game start if everything checks out. If not, you get the normal error, plus a report explaining what is missing.</li>
 </ol>
 
-<p>A full pack of 300+ mods is analyzed in about a second.</p>
+<p>A pack with 300+ mods is checked in about one second.</p>
 
-<h2>&#10022; What It Can Patch</h2>
-
-<ul>
-<li><strong>New parameters</strong> &mdash; a method or constructor gained parameters, anywhere in the list. Linkwright keeps the old arguments in order and fills each new one from values the calling code already has (one of its parameters, or a getter on one).</li>
-<li><strong>Changed types</strong> &mdash; a parameter, return value or field changed type. Linkwright converts the value right at the call, as long as nothing can be lost.</li>
-<li><strong>Interface methods with new types</strong> &mdash; an interface now requires a method with different types. Linkwright adds that method to the mod's class, passing through to the mod's own method of the same name.</li>
-<li><strong>Return values added to <code>void</code> methods</strong> &mdash; the extra result is quietly discarded.</li>
-</ul>
-
-<p><strong>Lossless conversions only:</strong> subtype to supertype, number widening (<code>int</code> &rarr; <code>long</code>, <code>float</code> &rarr; <code>double</code>&hellip;), boxing and unboxing, <code>BlockPos</code> &harr; <code>long</code>, <code>ChunkPos</code> &harr; <code>long</code>, <code>ResourceLocation</code> &harr; <code>String</code>, and <code>Vec3i</code> &rarr; <code>BlockPos</code>.</p>
-
-<h2>&#10022; Real Examples</h2>
+<h2>What It Can Fix</h2>
 
 <ul>
-<li><strong>CBC Aeronautics Missiles 0.2.0 + Create: Radars 5</strong> &mdash; Missiles pins Radars to 0.4.x. Radars 5 added a <code>Level</code> parameter to <code>isInSafeZone</code>. Linkwright verifies the other 124 links and patches both calls, passing in the level the calling code already has.</li>
-<li><strong>Power Grid 0.6.2 + TFMG 1.2.0</strong> &mdash; Power Grid wants TFMG 1.3, which switched block positions from a packed <code>long</code> to <code>BlockPos</code>. Linkwright converts the position Power Grid passes to TFMG's constructor, and gives Power Grid's connector the <code>long getPos()</code> TFMG 1.2 expects.</li>
+<li><strong>New parameters:</strong> a method gained extra inputs. Linkwright fills them in using values the mod already has.</li>
+<li><strong>Changed types:</strong> a value changed type, like a number becoming a bigger number type. Linkwright converts it, as long as nothing is lost.</li>
+<li><strong>Interface changes:</strong> a required method changed its types. Linkwright adds the new version and points it at the old one.</li>
+<li><strong>New return values:</strong> a method now returns something extra. Linkwright ignores it.</li>
 </ul>
 
-<h2>&#10022; Safe by Design</h2>
+<h2>Real Examples</h2>
 
 <ul>
-<li><strong>It never guesses.</strong> If more than one fix is possible, or none is, the rule is refused and reported instead of patched.</li>
-<li><strong>It respects intentional incompatibilities.</strong> If a mod deliberately refuses to load next to another (an <code>incompatible</code> rule, or a check in its own code), that's the author's call. Linkwright leaves it alone.</li>
-<li><strong>It never narrows.</strong> No <code>long</code> &rarr; <code>int</code>, no casting a supertype down, no inventing numbers for new primitive parameters.</li>
-<li><strong>It's fully transparent.</strong> Every decision is written to <code>logs/linkwright-report.txt</code>, including every patch it made and a ready-made <code>dependencyOverrides</code> line if you'd rather ship the approval without Linkwright.</li>
+<li><strong>CBC Aeronautics Missiles + Create: Radars 5:</strong> Radars added a new parameter to one method. Linkwright checked the other 124 links and fixed both calls.</li>
+<li><strong>Power Grid + TFMG 1.2:</strong> TFMG changed how block positions are stored. Linkwright converts them in both directions.</li>
 </ul>
 
-<h2>&#10022; Installing</h2>
-
-<p>Drop the jar into <code>mods/</code> on the client, the server, or both. Linkwright runs as an early loader service, so <strong>it won't appear in the in-game mod list</strong> and never has to match between client and server &mdash; each side checks its own mods.</p>
-
-<p><em>Note:</em> client and server still need matching versions of the mods themselves to connect. Linkwright fixes version rules between mods, not differences between your client and a server.</p>
-
-<h2>&#10022; Configuration</h2>
-
-<p><code>config/linkwright.toml</code> is created on first launch. The defaults are what most people want.</p>
+<h2>Safe by Design</h2>
 
 <ul>
-<li><code>mode</code> &mdash; <code>"auto"</code> (default) approves verified rules and applies patches; <code>"report"</code> only writes the report; <code>"off"</code> does nothing.</li>
-<li><code>bridgeCalls</code> &mdash; <code>true</code> (default) applies patches. Set to <code>false</code> to only approve exact matches.</li>
-<li><code>ignore</code> &mdash; rules to leave alone, written as <code>"dependent-&gt;dependency"</code>.</li>
-<li><code>forceApprove</code> &mdash; rules to approve even when problems are found. <strong>This can crash your game</strong>; use only if you know what you're doing.</li>
+<li><strong>It never guesses.</strong> If there is more than one possible fix, or none, it leaves the error in place.</li>
+<li><strong>It respects mod authors.</strong> If a mod is marked as incompatible with another on purpose, Linkwright leaves it alone.</li>
+<li><strong>It never loses data.</strong> Values are only converted when nothing can be lost.</li>
+<li><strong>It tells you everything.</strong> Every decision is written to <code>logs/linkwright-report.txt</code>.</li>
 </ul>
 
-<h2>&#10022; Limits</h2>
+<h2>Installing</h2>
+
+<p>Put the jar in your <code>mods</code> folder. It works on the client, the server, or both.</p>
+
+<p>Linkwright loads before other mods, so it won't show up in the in-game mod list. It doesn't need to match between client and server.</p>
+
+<p><strong>Note:</strong> your client and the server still need the same versions of your other mods to connect.</p>
+
+<h2>Settings</h2>
+
+<p>A settings file is created at <code>config/linkwright.toml</code>. The defaults work for almost everyone.</p>
 
 <ul>
-<li>Linkwright checks <em>signatures</em>, not behaviour. A method that keeps its signature but changes what it does still passes.</li>
-<li>Removed methods with no same-named replacement, and renamed classes, can't be adapted.</li>
-<li>Calls made from mixin classes or through method handles can be verified but not patched.</li>
+<li><code>mode</code>: <code>"auto"</code> fixes and approves (default), <code>"report"</code> only writes the report, <code>"off"</code> does nothing.</li>
+<li><code>bridgeCalls</code>: set to <code>false</code> to only approve mods that match exactly, with no fixes.</li>
+<li><code>ignore</code>: mod pairs to leave alone, written as <code>"modA-&gt;modB"</code>.</li>
+<li><code>forceApprove</code>: mod pairs to allow even when problems are found. <strong>This can crash your game.</strong></li>
 </ul>
 
-<h2>&#10022; Requirements</h2>
+<h2>Limits</h2>
 
 <ul>
-<li>Minecraft <strong>1.21.1</strong></li>
-<li>NeoForge <strong>21.1</strong></li>
-<li>No dependencies.</li>
+<li>It checks that mods fit together, not what the code does. A method that works differently but looks the same will still pass.</li>
+<li>Removed methods and renamed classes can't be fixed.</li>
 </ul>
 
-<hr>
+<h2>Requirements</h2>
 
-<p>Found a mod pair Linkwright should handle but doesn't? Open an issue on <a href="https://github.com/pablo67340/Linkwright/issues">GitHub</a> with your <code>logs/linkwright-report.txt</code> attached.</p>
+<ul>
+<li>Minecraft 1.21.1</li>
+<li>NeoForge 21.1</li>
+<li>No other mods needed</li>
+</ul>
 
-<p><em>Your mods, linked &mdash; until the devs catch up.</em></p>
+<p>Found two mods Linkwright should fix but doesn't? Open an issue on <a href="https://github.com/pablo67340/Linkwright/issues">GitHub</a> and attach your <code>logs/linkwright-report.txt</code>.</p>
