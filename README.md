@@ -3,39 +3,62 @@
 </p>
 
 <p align="center">
-  <b>Dependency reducer and link patcher for NeoForge 1.21.1.</b><br>
+  <b>Dependency reducer and link patcher for Forge, NeoForge and Fabric.</b><br>
   Lets your mods load when a version rule is stricter than the code it protects, and patches the small
   changes in between until the authors catch up.
 </p>
 
 <p align="center">
-  <img alt="Minecraft 1.21.1" src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A">
-  <img alt="NeoForge 21.1" src="https://img.shields.io/badge/NeoForge-21.1-E68C37">
+  <a href="https://www.curseforge.com/minecraft/mc-mods/linkwright"><img alt="CurseForge downloads" src="https://img.shields.io/curseforge/dt/1808374?label=CurseForge&color=F16436"></a>
+  <img alt="Minecraft 1.7.10 to 26.x" src="https://img.shields.io/badge/Minecraft-1.7.10%20to%2026.x-62B47A">
+  <img alt="Loaders: Forge, NeoForge, Fabric" src="https://img.shields.io/badge/loaders-Forge%20%7C%20NeoForge%20%7C%20Fabric-E68C37">
   <img alt="Side: client or server" src="https://img.shields.io/badge/side-client%20%7C%20server-2E8B9A">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
 ---
 
-Mods often pin the exact version range of another mod they integrate with. When that other mod
-updates, NeoForge refuses to start ("Mod X requires Y 1.3.0 or above, and below 1.4.0"), even when
-the code the first mod actually uses is unchanged, or changed in a way that is trivial to bridge.
-Linkwright checks the real code links between the two mods, lets the game launch when they line
-up, and patches the small differences in memory as the classes load.
+Mods often pin the exact version range of another mod they integrate with, or of the loader
+itself. When that other mod or the loader updates, the game refuses to start ("Mod X requires Y
+1.3.0 or above, and below 1.4.0"), even when the code the first mod actually uses is unchanged, or
+changed in a way that is trivial to bridge. Linkwright checks the real code links between the two,
+lets the game launch when they line up, and patches the small differences in memory as the classes
+load.
 
 Nothing is written to any mod's jar. The patches exist only while the game runs, so once the
 dependent mod updates, Linkwright simply has nothing left to do for it.
 
+<p align="center">
+  <img src="branding/gallery-before.png" alt="Before Linkwright: the game stops with two dependency errors" width="400">
+  <img src="branding/gallery-after.png" alt="After Linkwright: the same 331 mod pack reaches the title screen" width="400">
+</p>
+
+## Download
+
+Get it from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/linkwright) or the
+[releases page](https://github.com/pablo67340/Linkwright/releases/latest). Pick the jar for your
+loader:
+
+| Loader | File |
+| --- | --- |
+| Forge 1.17.1 and newer, or any NeoForge | `linkwright-<version>.jar` |
+| Forge 1.13.2 to 1.16.5 | `linkwright-1.13-1.16.5-<version>.jar` |
+| Forge 1.7.10 to 1.12.2 | `linkwright-1.7.10-1.12.2-<version>.jar` |
+| Fabric Loader 0.14 or newer, Minecraft 1.14 to 26.x | `linkwright-fabric-<version>.jar` |
+
+Quilt is not supported yet.
+
 ## What it does
 
-On every launch, before NeoForge checks dependency versions, Linkwright:
+On every launch, before the loader checks dependency versions, Linkwright:
 
-1. Reads every mod's `neoforge.mods.toml` (including mods nested in other jars) and finds the
-   version rules the installed mods break: on each other, and on a loader newer than they allow
+1. Reads every mod's metadata (`mods.toml`, `neoforge.mods.toml`, `fabric.mod.json`, or `@Mod`
+   on Forge 1.12.2 and older, including mods nested in other jars) and finds the version rules
+   the installed mods break: on each other, and on a loader newer than they allow
    (see [Loader version rules](#loader-version-rules)). Rules about Minecraft itself are never
    touched, and neither are `incompatible` or `discouraged` rules.
 2. For each broken rule, walks the dependent mod's bytecode and resolves every class, method and
-   field it uses in the dependency, through inheritance into Minecraft and NeoForge. It also
+   field it uses in the dependency, through inheritance into Minecraft and the loader. It also
    checks the dependent mod's mixins into the dependency (target classes, injector selectors,
    `@At` targets, shadows, overwrites, accessors and invokers), that classes extending the
    dependency still implement its abstract methods, and that every member is still accessible
@@ -45,13 +68,13 @@ On every launch, before NeoForge checks dependency versions, Linkwright:
    one adaptation fits, or none does, it is left as a problem rather than guessed at.
 4. Patches every adapted class in memory and verifies the result before approving anything (see
    [Verification](#verification)).
-5. If every link resolves or is adapted, it adds the rule to NeoForge's dependency overrides in
-   memory, so the game keeps launching. Otherwise NeoForge's error stays, and the report says
-   exactly what is missing.
+5. If every link resolves or is adapted, it relaxes that one rule in the loader's memory, so the
+   game keeps launching. Otherwise the loader's error stays, and the report says exactly what is
+   missing.
 
 A full pack of 300+ mods is analyzed in about a second. Everything is written to
-`logs/linkwright-report.txt`, including a ready-made `dependencyOverrides` line for packs that
-want to ship the approval without Linkwright.
+`logs/linkwright-report.txt`. On NeoForge the report also includes a ready-made
+`dependencyOverrides` line for packs that want to ship the approval without Linkwright.
 
 ### Examples
 
@@ -151,9 +174,28 @@ method handles, can be verified but not adapted.
 
 ## Installing
 
-Drop the jar into `mods/` on the client, the server, or both. Linkwright runs as a ModLauncher
-service, so it does not appear in the in-game mod list and never has to match between client and
-server. Each side checks its own mods.
+Drop the jar for your loader into `mods/` on the client, the server, or both. It never has to
+match between client and server, since each side checks its own mods. Linkwright starts before
+other mods, so on some versions it does not appear in the in-game mod list.
+
+### Fabric: one extra step
+
+Fabric checks mod versions before any mod gets to run, so Linkwright has to start a little
+earlier, as a Java agent. Add this JVM argument once:
+
+```
+-javaagent:mods/linkwright-fabric-<version>.jar
+```
+
+- **Prism Launcher or MultiMC:** Edit Instance, Settings, Java tab. Tick "JVM arguments" and add it.
+- **Minecraft Launcher:** Installations, Edit, More Options. Add it to the start of JVM Arguments.
+- **Servers:** add it before `-jar`, for example
+  `java -javaagent:mods/linkwright-fabric-1.2.0.jar -Xmx4G -jar fabric-server-launch.jar nogui`.
+
+If the relative path does not work, use the full path to the jar. Without the argument, the log
+says "Linkwright is installed but not active" along with the exact argument to add.
+
+### Client and server
 
 Remember that client and server still need matching versions of the mods themselves to connect.
 Linkwright fixes version rules between mods, not differences between your client and a server.
@@ -171,14 +213,17 @@ Linkwright fixes version rules between mods, not differences between your client
 
 ## Building
 
-Requires JDK 21.
+Gradle downloads the JDKs it needs (17 and 21) through toolchains. Linkwright never compiles
+against Minecraft, so there is no ForgeGradle, Loom or ModDevGradle setup.
 
 ```
-./gradlew build
+./gradlew release
 ```
 
-The jar is `build/libs/linkwright-1.21.1-neoforge-<version>.jar`. To dry-run the analysis
-against an existing instance without changing it:
+This builds every port and collects the four jars in `build/libs`. The shared core lives in
+`common/`, loader hooks in `platform/<loader>/`, and each shipped jar is a project under `ports/`.
+
+To dry-run the analysis against an existing instance without changing it:
 
 ```
 ./gradlew test --tests com.linkwright.PackScanTest -Plinkwright.testGameDir=<instance folder>
