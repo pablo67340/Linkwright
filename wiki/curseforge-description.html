@@ -4,7 +4,7 @@
 
 <p><strong>Your pack won't start because one mod wants version 1.3 of another, and you have 1.2?</strong> Linkwright fixes that.</p>
 
-<p>Many mods only accept one exact version range of another mod. When that mod updates, the game refuses to start, even if nothing important changed.</p>
+<p>Many mods only accept one exact version range of another mod, or of NeoForge, Forge or Fabric Loader itself. When that updates, the game refuses to start, even if nothing important changed.</p>
 
 <p>Linkwright checks whether the two mods still fit together. If they do, it lets the game start. If something small changed, it adapts it while the game loads.</p>
 
@@ -17,7 +17,7 @@
 <p>Every time the game starts, Linkwright:</p>
 
 <ol>
-<li>Finds mod version rules that aren't met.</li>
+<li>Finds version rules that aren't met, between mods or on the loader.</li>
 <li>Checks every class, method and field one mod uses from the other, including mixins.</li>
 <li>Adapts small changes, but only when there is exactly one safe way to do it.</li>
 <li>Lets the game start if everything checks out. If not, you get the normal error, plus a report explaining what is missing.</li>
@@ -28,10 +28,20 @@
 <h2>What It Can Fix</h2>
 
 <ul>
+<li><strong>Loader version locks:</strong> a mod only accepts an older NeoForge, Forge or Fabric Loader than yours. Linkwright checks everything the mod uses in the loader, and lets it run on your newer one.</li>
 <li><strong>New parameters:</strong> a method gained extra inputs. Linkwright fills them in using values the mod already has.</li>
 <li><strong>Changed types:</strong> a value changed type, like a number becoming a bigger number type. Linkwright converts it, as long as nothing is lost.</li>
 <li><strong>Interface changes:</strong> a required method changed its types. Linkwright adds the new version and points it at the old one.</li>
 <li><strong>New return values:</strong> a method now returns something extra. Linkwright ignores it.</li>
+</ul>
+
+<h2>What It Warns About</h2>
+
+<p>Some problems can't be fixed, but Linkwright points them out in your log and in the report, so you know what to change:</p>
+
+<ul>
+<li><strong>Wrong Java version:</strong> a mod built for a newer Java than the one your game runs on.</li>
+<li><strong>Duplicate mods:</strong> the same mod in your mods folder twice, usually an old version left behind after an update.</li>
 </ul>
 
 <h2>Real Examples</h2>
@@ -53,10 +63,10 @@
 <h2>Which File to Download</h2>
 
 <ul>
-<li><strong>Forge 1.17.1 and newer, or any NeoForge:</strong> <code>linkwright-1.1.0.jar</code></li>
-<li><strong>Forge 1.13.2 to 1.16.5:</strong> <code>linkwright-1.13-1.16.5-1.1.0.jar</code></li>
-<li><strong>Forge 1.7.10 to 1.12.2:</strong> <code>linkwright-1.7.10-1.12.2-1.1.0.jar</code></li>
-<li><strong>Fabric, any version:</strong> <code>linkwright-fabric-1.1.0.jar</code></li>
+<li><strong>Forge 1.17.1 and newer, or any NeoForge:</strong> <code>linkwright-1.2.0.jar</code></li>
+<li><strong>Forge 1.13.2 to 1.16.5:</strong> <code>linkwright-1.13-1.16.5-1.2.0.jar</code></li>
+<li><strong>Forge 1.7.10 to 1.12.2:</strong> <code>linkwright-1.7.10-1.12.2-1.2.0.jar</code></li>
+<li><strong>Fabric, any version:</strong> <code>linkwright-fabric-1.2.0.jar</code></li>
 </ul>
 
 <p>The CurseForge app picks the right one for you.</p>
@@ -75,7 +85,7 @@
 
 <p>Add this argument:</p>
 
-<p><code>-javaagent:mods/linkwright-fabric-1.1.0.jar</code></p>
+<p><code>-javaagent:mods/linkwright-fabric-1.2.0.jar</code></p>
 
 <p>If your file has a different version number, change the name to match. If it doesn't work, use the full path to the file instead, and avoid spaces in the path if you can.</p>
 
@@ -83,7 +93,7 @@
 <li><strong>Prism Launcher or MultiMC:</strong> Edit Instance, then Settings, then the Java tab. Tick "JVM arguments" and add it there.</li>
 <li><strong>Minecraft Launcher:</strong> Installations, then Edit, then More Options. Add it to the start of JVM Arguments.</li>
 <li><strong>Other launchers:</strong> look for "JVM arguments" or "Java arguments" in the profile settings.</li>
-<li><strong>Servers:</strong> add it to your start command before <code>-jar</code>, for example <code>java -javaagent:mods/linkwright-fabric-1.1.0.jar -Xmx4G -jar fabric-server-launch.jar nogui</code></li>
+<li><strong>Servers:</strong> add it to your start command before <code>-jar</code>, for example <code>java -javaagent:mods/linkwright-fabric-1.2.0.jar -Xmx4G -jar fabric-server-launch.jar nogui</code></li>
 </ul>
 
 <p>To check it worked, look for lines starting with "Linkwright" in your log. If you see "Linkwright is installed but not active", the argument is missing or the file name doesn't match. The message shows the exact argument to use.</p>
@@ -95,7 +105,7 @@
 <ul>
 <li><code>mode</code>: <code>"auto"</code> fixes and approves (default), <code>"report"</code> only writes the report, <code>"off"</code> does nothing.</li>
 <li><code>bridgeCalls</code>: set to <code>false</code> to only approve mods that match exactly, with no fixes.</li>
-<li><code>ignore</code>: mod pairs to leave alone, written as <code>"modA-&gt;modB"</code>.</li>
+<li><code>ignore</code>: mod pairs to leave alone, written as <code>"modA-&gt;modB"</code> or <code>"modA-&gt;neoforge"</code>.</li>
 <li><code>forceApprove</code>: mod pairs to allow even when problems are found. <strong>This can crash your game.</strong></li>
 </ul>
 
@@ -104,6 +114,7 @@
 <ul>
 <li>It checks that mods fit together, not what the code does. A method that works differently but looks the same will still pass.</li>
 <li>Removed methods and renamed classes can't be fixed.</li>
+<li>If a mod needs a newer loader than yours, Linkwright leaves it alone. Update your loader instead.</li>
 </ul>
 
 <h2>Requirements</h2>

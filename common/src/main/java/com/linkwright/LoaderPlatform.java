@@ -28,8 +28,14 @@ public interface LoaderPlatform {
     /** Minecraft and loader jars, named the way mods see them at runtime. May be empty. */
     List<Path> platformJars();
 
-    /** Mod ids that stand for the game, the loader or Java, whose rules are never relaxed. */
+    /**
+     * Mod ids that stand for the game, the loader or Java. Their rules are never relaxed, except
+     * rules on {@link #loader()} that only an older loader than the installed one satisfies.
+     */
     Set<String> platformIds();
+
+    /** The loader as a dependency mods' rules can be checked against, or {@code null} when it cannot be located. */
+    LoaderMod loader();
 
     McNames names();
 

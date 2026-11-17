@@ -21,10 +21,10 @@ final class ReportWriter {
     }
 
     static void write(Path file, LinkwrightConfig config, LoaderPlatform platform, List<PairReport> reports,
-                      Map<String, Set<String>> approved) {
+                      Map<String, Set<String>> approved, List<String> warnings) {
         try {
             String hint = approved.isEmpty() ? null : platform.overridesHint(approved);
-            Io.writeString(file, render(config, platform.loaderName(), platform.dist().name(), reports, hint));
+            Io.writeString(file, render(config, platform.loaderName(), platform.dist().name(), reports, hint, warnings));
         } catch (Exception e) {
             LwLog.warn("Could not write " + file + ": " + e);
         }
@@ -32,13 +32,21 @@ final class ReportWriter {
 
     /** @param overridesHint how to relax the approved rules without Linkwright, or {@code null} */
     static String render(LinkwrightConfig config, String loaderName, String dist, List<PairReport> reports,
-                         String overridesHint) {
+                         String overridesHint, List<String> warnings) {
         StringBuilder out = new StringBuilder();
         out.append("Linkwright ").append(Linkwright.VERSION).append(" report, ")
                 .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).format(new Date()))
                 .append(", ").append(loaderName).append(' ').append(dist.toLowerCase(Locale.ROOT)).append('\n');
         out.append("Mode: ").append(config.mode().name().toLowerCase(Locale.ROOT))
                 .append(config.bridgeCalls() ? "" : " (call bridging disabled)").append("\n\n");
+
+        if (!warnings.isEmpty()) {
+            out.append("Warnings (Linkwright cannot fix these, but the game will likely fail because of them):\n");
+            for (String warning : warnings) {
+                out.append("  - ").append(warning).append('\n');
+            }
+            out.append('\n');
+        }
 
         if (reports.isEmpty()) {
             out.append("Every mod's dependency versions are satisfied. Nothing to do.\n");
@@ -49,6 +57,10 @@ final class ReportWriter {
             out.append(r.dependent).append("  ->  ").append(r.dependency).append('\n');
             out.append("  Rule:     ").append(r.dependent.modId()).append(" asks for ").append(r.dependency.modId())
                     .append(' ').append(r.requiredRange).append(", installed is ").append(r.dependency.version()).append('\n');
+            if (r.dependency.isLoader()) {
+                out.append("  Note:     ").append(loaderName).append(" is newer than this mod allows; every class, method,")
+                        .append(" field and mixin target it uses in ").append(loaderName).append(" was checked\n");
+            }
             if (r.alreadyOverridden) {
                 out.append("  Note:     ").append(loaderName).append("'s own config already relaxes this rule\n");
             }

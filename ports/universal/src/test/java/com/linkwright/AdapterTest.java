@@ -55,7 +55,7 @@ class AdapterTest {
 
         Linkwright.Analysis analysis = Linkwright.analyze(new TestPlatform(mods), LinkwrightConfig.defaults());
         System.out.println(ReportWriter.render(LinkwrightConfig.defaults(), "Test", "client",
-                analysis.result.reports, null));
+                analysis.result.reports, null, analysis.warnings));
         PairReport report = analysis.result.reports.get(0);
         assertEquals(PairReport.Decision.APPROVED, report.decision, report.problems.toString());
         List<Patch> patches = analysis.result.patches;

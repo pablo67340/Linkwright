@@ -1,5 +1,6 @@
 package com.linkwright.neoforge;
 
+import com.linkwright.LoaderMod;
 import com.linkwright.fml.FmlPlatform;
 import com.linkwright.fml.LaunchArgs;
 import com.linkwright.fml.ModInfoRules;
@@ -33,6 +34,7 @@ public final class NeoForgePlatform implements FmlPlatform {
     private final boolean overrides = FmlOverrides.supported();
     private final ModInfoRules rules = new ModInfoRules(LOADING);
     private List<Path> platformJars;
+    private String neoForgeVersion;
     /** 20.5 moved metadata to neoforge.mods.toml and the runtime to Mojang's member names. */
     private Boolean modern;
 
@@ -40,6 +42,7 @@ public final class NeoForgePlatform implements FmlPlatform {
         this.gameDir = gameDir;
         this.dist = dist;
         this.platformJars = platformJars;
+        this.neoForgeVersion = neoForgeVersion;
         this.modern = isModern(neoForgeVersion);
     }
 
@@ -64,10 +67,10 @@ public final class NeoForgePlatform implements FmlPlatform {
 
     private synchronized boolean modern() {
         if (modern == null) {
-            String neoForge = version("neoForgeVersion", "--fml.neoForgeVersion");
-            modern = isModern(neoForge);
+            neoForgeVersion = version("neoForgeVersion", "--fml.neoForgeVersion");
+            modern = isModern(neoForgeVersion);
             platformJars = NeoForgeJars.locate(LaunchArgs.libraries(), version("mcVersion", "--fml.mcVersion"),
-                    version("neoFormVersion", "--fml.neoFormVersion"), neoForge, dist);
+                    version("neoFormVersion", "--fml.neoFormVersion"), neoForgeVersion, dist);
         }
         return modern;
     }
@@ -138,6 +141,13 @@ public final class NeoForgePlatform implements FmlPlatform {
     @Override
     public Set<String> platformIds() {
         return PLATFORM_IDS;
+    }
+
+    @Override
+    public LoaderMod loader() {
+        modern();
+        return LoaderMod.of("neoforge", neoForgeVersion, LoaderMod.find(platformJars, "neoforge-", "-universal.jar"),
+                "net/neoforged/neoforge/");
     }
 
     @Override

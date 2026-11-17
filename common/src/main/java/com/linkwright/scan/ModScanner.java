@@ -26,10 +26,12 @@ public final class ModScanner {
     public static final class ModSet implements AutoCloseable {
         private final List<ModJar> jars;
         private final Map<String, ModEntry> mods;
+        private final List<ModEntry> topLevel;
 
-        ModSet(List<ModJar> jars, Map<String, ModEntry> mods) {
+        ModSet(List<ModJar> jars, Map<String, ModEntry> mods, List<ModEntry> topLevel) {
             this.jars = Collections.unmodifiableList(jars);
             this.mods = Collections.unmodifiableMap(mods);
+            this.topLevel = Collections.unmodifiableList(topLevel);
         }
 
         public List<ModJar> jars() {
@@ -38,6 +40,11 @@ public final class ModScanner {
 
         public Map<String, ModEntry> mods() {
             return mods;
+        }
+
+        /** Every mod declared by a jar sitting directly in a mods folder, duplicates included. */
+        public List<ModEntry> topLevel() {
+            return topLevel;
         }
 
         @Override
@@ -51,6 +58,7 @@ public final class ModScanner {
     public static ModSet scan(List<Path> modDirs, List<ModReader> readers, VersionScheme versions) throws IOException {
         List<ModJar> jars = new ArrayList<>();
         Map<String, ModEntry> mods = new LinkedHashMap<>();
+        List<ModEntry> topLevel = new ArrayList<>();
         for (Path dir : modDirs) {
             if (!Files.isDirectory(dir)) {
                 continue;
@@ -68,19 +76,22 @@ public final class ModScanner {
             }
             Collections.sort(files);
             for (Path file : files) {
-                visit(ModJar.top(file), 0, readers, versions, jars, mods);
+                visit(ModJar.top(file), 0, readers, versions, jars, mods, topLevel);
             }
         }
-        return new ModSet(jars, mods);
+        return new ModSet(jars, mods, topLevel);
     }
 
     private static void visit(ModJar jar, int depth, List<ModReader> readers, VersionScheme versions,
-                              List<ModJar> jars, Map<String, ModEntry> mods) {
+                              List<ModJar> jars, Map<String, ModEntry> mods, List<ModEntry> topLevel) {
         jars.add(jar);
         try {
             Set<String> nested = new LinkedHashSet<>();
             for (ModReader reader : readers) {
                 for (ModEntry entry : reader.read(jar)) {
+                    if (depth == 0) {
+                        topLevel.add(entry);
+                    }
                     ModEntry existing = mods.get(entry.modId());
                     // Like jar-in-jar resolution, the newest copy of a mod wins when several jars carry it
                     if (existing == null || newer(versions, entry.version(), existing.version())) {
@@ -91,7 +102,7 @@ public final class ModScanner {
             }
             if (depth < MAX_NESTING) {
                 for (String entry : nested) {
-                    visit(jar.nested(entry), depth + 1, readers, versions, jars, mods);
+                    visit(jar.nested(entry), depth + 1, readers, versions, jars, mods, topLevel);
                 }
             }
         } catch (Exception e) {

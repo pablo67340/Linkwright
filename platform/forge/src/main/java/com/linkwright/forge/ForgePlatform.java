@@ -1,5 +1,6 @@
 package com.linkwright.forge;
 
+import com.linkwright.LoaderMod;
 import com.linkwright.fml.FmlPlatform;
 import com.linkwright.fml.LaunchArgs;
 import com.linkwright.fml.ModInfoRules;
@@ -32,12 +33,14 @@ public final class ForgePlatform implements FmlPlatform {
     private final Dist dist;
     private final ModInfoRules rules = new ModInfoRules(LOADING);
     private List<Path> platformJars;
+    private String forgeVersion;
     private McNames names;
 
     public ForgePlatform(Path gameDir, Dist dist, String mcVersion, String forgeVersion, List<Path> platformJars) {
         this.gameDir = gameDir;
         this.dist = dist;
         this.platformJars = platformJars;
+        this.forgeVersion = forgeVersion;
         this.names = namesFor(mcVersion, forgeVersion);
     }
 
@@ -61,9 +64,9 @@ public final class ForgePlatform implements FmlPlatform {
         }
         String mc = version("mcVersion", "--fml.mcVersion");
         String mcp = version("mcpVersion", "--fml.mcpVersion");
-        String forge = version("forgeVersion", "--fml.forgeVersion");
-        names = namesFor(mc, forge);
-        platformJars = ForgeJars.fromLaunch(dist, mc, mcp, forge);
+        forgeVersion = version("forgeVersion", "--fml.forgeVersion");
+        names = namesFor(mc, forgeVersion);
+        platformJars = ForgeJars.fromLaunch(dist, mc, mcp, forgeVersion);
     }
 
     private static String version(String property, String argument) {
@@ -141,6 +144,13 @@ public final class ForgePlatform implements FmlPlatform {
     @Override
     public Set<String> platformIds() {
         return PLATFORM_IDS;
+    }
+
+    @Override
+    public LoaderMod loader() {
+        resolveVersions();
+        return LoaderMod.of("forge", forgeVersion, LoaderMod.find(platformJars, "forge-", "-universal.jar"),
+                "net/minecraftforge/");
     }
 
     @Override

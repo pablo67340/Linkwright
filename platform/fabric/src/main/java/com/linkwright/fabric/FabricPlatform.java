@@ -1,5 +1,6 @@
 package com.linkwright.fabric;
 
+import com.linkwright.LoaderMod;
 import com.linkwright.LoaderPlatform;
 import com.linkwright.LwLog;
 import com.linkwright.link.McNames;
@@ -39,6 +40,7 @@ final class FabricPlatform implements LoaderPlatform {
     private final Dist dist;
     private final List<Path> gameJars;
     private final Path loaderJar;
+    private final String loaderVersion;
     private final FabricVersions versions;
 
     private final Method getId;
@@ -49,12 +51,13 @@ final class FabricPlatform implements LoaderPlatform {
     private final Constructor<?> newDependency;
     private volatile Map<String, List<String>> approved = Collections.emptyMap();
 
-    private FabricPlatform(ClassLoader classLoader, Path gameDir, Dist dist, List<Path> gameJars, Path loaderJar)
-            throws ReflectiveOperationException {
+    private FabricPlatform(ClassLoader classLoader, Path gameDir, Dist dist, List<Path> gameJars, Path loaderJar,
+                           String loaderVersion) throws ReflectiveOperationException {
         this.gameDir = gameDir;
         this.dist = dist;
         this.gameJars = gameJars;
         this.loaderJar = loaderJar;
+        this.loaderVersion = loaderVersion;
         this.versions = new FabricVersions(classLoader);
         Class<?> metadata = Class.forName(IMPL + "metadata.LoaderModMetadata", false, classLoader);
         Class<?> dependency = Class.forName(API + "metadata.ModDependency", false, classLoader);
@@ -82,7 +85,13 @@ final class FabricPlatform implements LoaderPlatform {
         } catch (Exception e) {
             LwLog.debug("Fabric Loader's jar not located: " + e);
         }
-        return new FabricPlatform(classLoader, gameDir, dist, gameJars(provider), loaderJar);
+        String version = null;
+        try {
+            version = (String) impl.getField("VERSION").get(null);
+        } catch (Exception e) {
+            LwLog.debug("Fabric Loader's version not found: " + e);
+        }
+        return new FabricPlatform(classLoader, gameDir, dist, gameJars(provider), loaderJar, version);
     }
 
     /** The game jars as the game runs them, which in production are already remapped. */
@@ -149,6 +158,11 @@ final class FabricPlatform implements LoaderPlatform {
     @Override
     public Set<String> platformIds() {
         return PLATFORM_IDS;
+    }
+
+    @Override
+    public LoaderMod loader() {
+        return LoaderMod.of("fabricloader", loaderVersion, loaderJar, "net/fabricmc/loader/", "net/fabricmc/api/");
     }
 
     /** Intermediary names through 1.21; Minecraft has shipped unobfuscated since 26.1. */

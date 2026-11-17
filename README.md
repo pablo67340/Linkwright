@@ -31,8 +31,9 @@ dependent mod updates, Linkwright simply has nothing left to do for it.
 On every launch, before NeoForge checks dependency versions, Linkwright:
 
 1. Reads every mod's `neoforge.mods.toml` (including mods nested in other jars) and finds the
-   mod-to-mod version rules the installed mods break. Rules about Minecraft and NeoForge
-   themselves are never touched, and neither are `incompatible` or `discouraged` rules.
+   version rules the installed mods break: on each other, and on a loader newer than they allow
+   (see [Loader version rules](#loader-version-rules)). Rules about Minecraft itself are never
+   touched, and neither are `incompatible` or `discouraged` rules.
 2. For each broken rule, walks the dependent mod's bytecode and resolves every class, method and
    field it uses in the dependency, through inheritance into Minecraft and NeoForge. It also
    checks the dependent mod's mixins into the dependency (target classes, injector selectors,
@@ -74,6 +75,26 @@ powergrid 0.6.2  ->  tfmg 1.2.0
     - ...TFMGCompatDeviceConnectorBlockEntity: adds getPos()J for ...IElectric, delegating to getPos()BlockPos (result via BlockPos.asLong())
   Problems: none
 ```
+
+### Loader version rules
+
+Some mods pin the loader itself, often by accident: `versionRange="[21.1.243]"` on `neoforge`
+accepts exactly one NeoForge build, so the mod refuses every newer one. When the installed
+NeoForge, Forge or Fabric Loader is newer than such a rule allows, Linkwright treats the loader
+like any other dependency. It checks every class, method, field and mixin target the mod uses in
+the loader's own jar, and approves the rule only when all of them still resolve.
+
+A mod that needs a newer loader than the one installed is left alone, since updating the loader
+is the fix.
+
+### Warnings
+
+Two problems Linkwright cannot fix, but points out in the log and at the top of the report before
+they stop the game:
+
+- A jar built for a newer Java than the game runs on, which would otherwise crash with an
+  `UnsupportedClassVersionError` once it loads.
+- The same mod in the mods folder more than once, usually an old version left behind by an update.
 
 ## Adapters
 
@@ -121,7 +142,7 @@ Linkwright fixes version rules between mods, not differences between your client
 | --- | --- | --- |
 | `mode` | `"auto"` | `auto` approves verified rules and applies adapters; `report` only writes the report; `off` does nothing |
 | `bridgeCalls` | `true` | Apply adapters. When `false`, any changed link is a problem |
-| `ignore` | `[]` | Rules to leave alone, as `"dependent->dependency"` |
+| `ignore` | `[]` | Rules to leave alone, as `"dependent->dependency"`, such as `"somemod->create"` or `"othermod->neoforge"` |
 | `forceApprove` | `[]` | Rules to approve even when problems are found. This can crash the game |
 
 ## Building

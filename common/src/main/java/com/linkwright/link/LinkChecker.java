@@ -51,16 +51,27 @@ public final class LinkChecker {
         final Set<String> dependentClasses;
         final Set<String> dependencyClasses;
         final Set<String> dependencyRoots;
+        /** For the loader, its exact packages; other jars of the loader share its package roots. */
+        final Set<String> dependencyPackages;
         final Map<String, Problem> problems = new LinkedHashMap<>();
         final Map<String, Patch> patches = new LinkedHashMap<>();
         int checked;
         int unverifiable;
 
-        Pass(Set<String> dependentClasses, Set<String> dependencyClasses) {
+        Pass(Set<String> dependentClasses, Set<String> dependencyClasses, boolean loader) {
             this.dependentClasses = dependentClasses;
             this.dependencyClasses = dependencyClasses;
-            this.dependencyRoots = roots(dependencyClasses);
-            this.dependencyRoots.removeAll(roots(dependentClasses));
+            if (loader) {
+                this.dependencyRoots = new HashSet<>();
+                this.dependencyPackages = new HashSet<>();
+                for (String cls : dependencyClasses) {
+                    dependencyPackages.add(packageOf(cls));
+                }
+            } else {
+                this.dependencyRoots = roots(dependencyClasses);
+                this.dependencyRoots.removeAll(roots(dependentClasses));
+                this.dependencyPackages = null;
+            }
         }
 
         /** Whether this class belongs to the dependency, including classes it used to have. */
@@ -73,6 +84,9 @@ public final class LinkChecker {
             }
             if (index.contains(internalName) || dependentClasses.contains(internalName)) {
                 return false;
+            }
+            if (dependencyPackages != null) {
+                return dependencyPackages.contains(packageOf(internalName));
             }
             for (String root : dependencyRoots) {
                 if (internalName.startsWith(root)) {
@@ -103,9 +117,12 @@ public final class LinkChecker {
     public PairReport check(ModEntry dependent, ModEntry dependency, String requiredRange, boolean alreadyOverridden)
             throws IOException {
         Set<String> dependencyClasses = classesIn(dependency.jar());
+        if (dependency.isLoader()) {
+            dependencyClasses.removeIf(cls -> !startsWithAny(cls, dependency.packages()));
+        }
         Set<String> dependentClasses = classesIn(dependent.jar());
         dependentClasses.removeAll(dependencyClasses);
-        Pass pass = new Pass(dependentClasses, dependencyClasses);
+        Pass pass = new Pass(dependentClasses, dependencyClasses, dependency.isLoader());
 
         for (String name : dependentClasses) {
             byte[] bytes = dependent.jar().read(name + ".class");
@@ -346,6 +363,19 @@ public final class LinkChecker {
             }
         }
         return classes;
+    }
+
+    private static boolean startsWithAny(String name, List<String> prefixes) {
+        for (String prefix : prefixes) {
+            if (name.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String packageOf(String internalName) {
+        return internalName.substring(0, internalName.lastIndexOf('/') + 1);
     }
 
     /** The first three package segments of each class, minus anything shared by the whole ecosystem. */

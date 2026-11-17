@@ -34,7 +34,8 @@ class PackScanTest {
         long start = System.nanoTime();
         Linkwright.Analysis analysis = Linkwright.analyze(platform, LinkwrightConfig.defaults());
         System.out.println(ReportWriter.render(LinkwrightConfig.defaults(), platform.loaderName(), "client",
-                analysis.result.reports, analysis.approved.isEmpty() ? null : platform.overridesHint(analysis.approved)));
+                analysis.result.reports, analysis.approved.isEmpty() ? null : platform.overridesHint(analysis.approved),
+                analysis.warnings));
         System.out.println("Scanned " + analysis.modCount + " mods in " + (System.nanoTime() - start) / 1_000_000 + " ms");
     }
 }

@@ -1,5 +1,6 @@
 package com.linkwright.legacy;
 
+import com.linkwright.LoaderMod;
 import com.linkwright.LoaderPlatform;
 import com.linkwright.LwLog;
 import com.linkwright.link.McNames;
@@ -116,6 +117,26 @@ final class LegacyForgePlatform implements LoaderPlatform {
     @Override
     public Set<String> platformIds() {
         return PLATFORM_IDS;
+    }
+
+    /** Forge's own container, which FML checks rules against: {@code Forge} before 1.8, {@code forge} after. */
+    @Override
+    public LoaderMod loader() {
+        try {
+            Class<?> loaderType = Class.forName(fml + ".common.Loader", true, classLoader);
+            Object loader = loaderType.getMethod("instance").invoke(null);
+            for (Object mod : (List<?>) loaderType.getMethod("getModList").invoke(loader)) {
+                String modId = (String) call(mod, "getModId");
+                if ("forge".equalsIgnoreCase(modId)) {
+                    List<Path> jars = platformJars();
+                    return LoaderMod.of(modId, (String) call(mod, "getVersion"), jars.isEmpty() ? null : jars.get(0),
+                            "net/minecraftforge/", "cpw/mods/fml/");
+                }
+            }
+        } catch (ReflectiveOperationException e) {
+            LwLog.debug("Forge's container not found: " + e);
+        }
+        return null;
     }
 
     @Override

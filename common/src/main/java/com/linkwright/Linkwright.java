@@ -13,18 +13,23 @@ import com.linkwright.scan.ModJar;
 import com.linkwright.scan.ModScanner;
 import com.linkwright.version.VersionScheme;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Finds every mod-to-mod version rule the installed mods break, verifies each one at the bytecode
- * level, and decides which to approve and which call sites to bridge.
+ * Finds every version rule the installed mods break, on each other or on a loader newer than they
+ * allow, verifies each one at the bytecode level, and decides which to approve and which call sites
+ * to bridge.
  */
 public final class Linkwright {
     public static final String VERSION = Linkwright.class.getPackage() == null
@@ -76,13 +81,18 @@ public final class Linkwright {
         final Result result;
         final Map<String, Set<String>> approved;
         final int modCount;
+        /** Problems with the mods folder that Linkwright can only point out. */
+        final List<String> warnings;
 
-        Analysis(Result result, Map<String, Set<String>> approved, int modCount) {
+        Analysis(Result result, Map<String, Set<String>> approved, int modCount, List<String> warnings) {
             this.result = result;
             this.approved = approved;
             this.modCount = modCount;
+            this.warnings = warnings;
         }
     }
+
+    private static final Pattern VERSION_NUMBER = Pattern.compile("\\d+(?:\\.\\d+)*(?:-[0-9A-Za-z.]+)?");
 
     private Linkwright() {
     }
@@ -97,7 +107,10 @@ public final class Linkwright {
         }
         Analysis analysis = analyze(platform, config);
         ReportWriter.write(gameDir.resolve("logs").resolve("linkwright-report.txt"), config, platform,
-                analysis.result.reports, analysis.approved);
+                analysis.result.reports, analysis.approved, analysis.warnings);
+        for (String warning : analysis.warnings) {
+            LwLog.warn("Linkwright: " + warning);
+        }
         if (analysis.result.reports.isEmpty()) {
             LwLog.info("Linkwright: all " + analysis.modCount + " mods' dependency versions are satisfied");
         } else {
@@ -107,20 +120,42 @@ public final class Linkwright {
     }
 
     static Analysis analyze(LoaderPlatform platform, LinkwrightConfig config) throws Exception {
+        return analyze(platform, config, Diagnostics.runtimeClassVersion());
+    }
+
+    static Analysis analyze(LoaderPlatform platform, LinkwrightConfig config, int runtimeClassVersion) throws Exception {
         Map<String, Set<String>> existing = platform.existingOverrides();
         List<ModJar> platformJars = new ArrayList<>();
+        ModJar loaderJar = null;
         ModScanner.ModSet mods = ModScanner.scan(platform.modDirs(), platform.readers(), platform.versions());
         try {
-            List<Unmet> unmet = findUnmet(mods.mods(), platform.dist(), platform.platformIds(), platform.versions());
+            List<String> warnings = Diagnostics.check(mods, runtimeClassVersion);
+            Map<String, ModEntry> all = new LinkedHashMap<>(mods.mods());
+            Set<String> skip = new HashSet<>(platform.platformIds());
+            LoaderMod loader = loader(platform);
+            if (loader != null) {
+                loaderJar = ModJar.top(loader.jar);
+                for (String id : loader.ids) {
+                    if (!all.containsKey(id)) {
+                        all.put(id, ModEntry.loader(id, loader.version, loaderJar, loader.packages));
+                        skip.remove(id);
+                    }
+                }
+            }
+            List<Unmet> unmet = findUnmet(all, platform.dist(), skip, platform.versions());
             if (unmet.isEmpty()) {
-                return new Analysis(Result.EMPTY, Collections.<String, Set<String>>emptyMap(), mods.mods().size());
+                return new Analysis(Result.EMPTY, Collections.<String, Set<String>>emptyMap(), mods.mods().size(), warnings);
             }
 
-            for (Path jar : platform.platformJars()) {
+            List<Path> platformPaths = platform.platformJars();
+            for (Path jar : platformPaths) {
                 platformJars.add(ModJar.top(jar));
             }
             List<ModJar> indexed = new ArrayList<>(mods.jars());
             indexed.addAll(platformJars);
+            if (loaderJar != null && !platformPaths.contains(loaderJar.path())) {
+                indexed.add(loaderJar);
+            }
             Hierarchy hierarchy = new Hierarchy(new ClassIndex(indexed), platform.names());
             LinkChecker checker = new LinkChecker(hierarchy);
             List<PairReport> reports = new ArrayList<>();
@@ -172,13 +207,50 @@ public final class Linkwright {
                 }
             }
 
-            return new Analysis(new Result(overrides, patches, reports), approvedAll, mods.mods().size());
+            return new Analysis(new Result(overrides, patches, reports), approvedAll, mods.mods().size(), warnings);
         } finally {
             for (ModJar jar : platformJars) {
                 jar.close();
             }
+            if (loaderJar != null) {
+                loaderJar.close();
+            }
             mods.close();
         }
+    }
+
+    private static LoaderMod loader(LoaderPlatform platform) {
+        try {
+            LoaderMod loader = platform.loader();
+            if (loader != null && loader.version != null && loader.jar != null && Files.isRegularFile(loader.jar)) {
+                return loader;
+            }
+            LwLog.debug("Linkwright could not locate " + platform.loaderName() + "'s jar; its version rules stay as they are");
+        } catch (RuntimeException e) {
+            LwLog.debug("Linkwright could not read " + platform.loaderName() + "'s version: " + e);
+        }
+        return null;
+    }
+
+    /**
+     * Whether {@code version} is newer than every version {@code range} mentions, so the rule only
+     * fails because the version is too new. Reading the versions out of the text works the same for
+     * Maven ranges ({@code [21.1.243]}) and Fabric predicates ({@code >=0.15 <0.16}).
+     */
+    static boolean aboveRange(VersionScheme versions, String range, String version) {
+        Matcher matcher = VERSION_NUMBER.matcher(range);
+        boolean any = false;
+        while (matcher.find()) {
+            any = true;
+            try {
+                if (versions.compare(version, matcher.group()) <= 0) {
+                    return false;
+                }
+            } catch (RuntimeException e) {
+                return false;
+            }
+        }
+        return any;
     }
 
     private static void addTo(Map<String, Set<String>> map, String key, String value) {
@@ -210,6 +282,10 @@ public final class Linkwright {
                     satisfied = null;
                 }
                 if (satisfied == null || satisfied) {
+                    continue;
+                }
+                // An older loader than a mod needs is fixed by updating the loader, not by relaxing the rule
+                if (dependency.isLoader() && !aboveRange(versions, rule.rangeSpec(), dependency.version())) {
                     continue;
                 }
                 unmet.add(new Unmet(dependent, dependency, rule));
