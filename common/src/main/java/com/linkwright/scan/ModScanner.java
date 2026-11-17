@@ -56,6 +56,17 @@ public final class ModScanner {
     }
 
     public static ModSet scan(List<Path> modDirs, List<ModReader> readers, VersionScheme versions) throws IOException {
+        return scan(modDirs, readers, versions, MAX_NESTING);
+    }
+
+    /** Only the jars sitting directly in the mods folders, without looking inside them for more. */
+    public static ModSet scanTopLevel(List<Path> modDirs, List<ModReader> readers, VersionScheme versions)
+            throws IOException {
+        return scan(modDirs, readers, versions, 0);
+    }
+
+    private static ModSet scan(List<Path> modDirs, List<ModReader> readers, VersionScheme versions, int maxNesting)
+            throws IOException {
         List<ModJar> jars = new ArrayList<>();
         Map<String, ModEntry> mods = new LinkedHashMap<>();
         List<ModEntry> topLevel = new ArrayList<>();
@@ -76,13 +87,13 @@ public final class ModScanner {
             }
             Collections.sort(files);
             for (Path file : files) {
-                visit(ModJar.top(file), 0, readers, versions, jars, mods, topLevel);
+                visit(ModJar.top(file), 0, maxNesting, readers, versions, jars, mods, topLevel);
             }
         }
         return new ModSet(jars, mods, topLevel);
     }
 
-    private static void visit(ModJar jar, int depth, List<ModReader> readers, VersionScheme versions,
+    private static void visit(ModJar jar, int depth, int maxNesting, List<ModReader> readers, VersionScheme versions,
                               List<ModJar> jars, Map<String, ModEntry> mods, List<ModEntry> topLevel) {
         jars.add(jar);
         try {
@@ -100,9 +111,9 @@ public final class ModScanner {
                 }
                 nested.addAll(reader.nestedJars(jar));
             }
-            if (depth < MAX_NESTING) {
+            if (depth < maxNesting) {
                 for (String entry : nested) {
-                    visit(jar.nested(entry), depth + 1, readers, versions, jars, mods, topLevel);
+                    visit(jar.nested(entry), depth + 1, maxNesting, readers, versions, jars, mods, topLevel);
                 }
             }
         } catch (Exception e) {

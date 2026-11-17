@@ -57,6 +57,8 @@ public final class LinkwrightService implements ITransformationService {
         Path gameDir = environment.getProperty(IEnvironment.Keys.GAMEDIR.get()).orElse(Paths.get("").toAbsolutePath());
         Dist dist = Dist.fromLaunchTarget(environment.getProperty(IEnvironment.Keys.LAUNCHTARGET.get()).orElse(null));
         platform = ForgePlatform.fromLaunch(gameDir, dist);
+        // FML lists the mods folder in its scan, after every service has initialized
+        Linkwright.prepare(platform);
         try {
             Path jar = LaunchArgs.jarFile(LinkwrightService.class.getProtectionDomain().getCodeSource().getLocation().toString());
             if (OldFml.registerLocator(jar)) {

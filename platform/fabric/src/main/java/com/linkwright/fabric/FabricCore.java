@@ -60,6 +60,8 @@ public final class FabricCore implements ClassFileTransformer {
         ran = true;
         try {
             FabricPlatform fabric = FabricPlatform.fromLoader(((Class<?>) overridesClass).getClassLoader());
+            // Fabric Loader creates its dependency overrides before it lists the mods folder
+            Linkwright.prepare(fabric);
             Linkwright.Result result = Linkwright.run(fabric);
             patches = new PatchSet(result.patches);
             if (!result.overrides.isEmpty()) {

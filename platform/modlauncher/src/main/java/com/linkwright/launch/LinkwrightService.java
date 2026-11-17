@@ -57,6 +57,8 @@ public final class LinkwrightService implements ITransformationService {
             result = Linkwright.Result.EMPTY;
             return;
         }
+        // FML lists the mods folder in its scan, after every service has initialized
+        Linkwright.prepare(platform);
         tryRelax();
     }
 

@@ -39,6 +39,7 @@
 <li><strong>Renamed getters:</strong> a method like <code>getName()</code> was renamed to <code>name()</code>, or back. Linkwright follows the new name.</li>
 <li><strong>Moved classes:</strong> a class moved to another package in the same mod. Linkwright points the mod at its new home.</li>
 <li><strong>Static changes:</strong> a method became static, or stopped being static. Linkwright adjusts the call to match.</li>
+<li><strong>Duplicate mods:</strong> the same mod is in your mods folder twice, usually an old version left behind after an update. Linkwright keeps the copy you added last, even if it is the older version, and disables the other by renaming it to <code>.jar.disabled</code>. Your launcher shows it as a disabled mod, so you can turn it back on. If Linkwright can't tell which copy came last, it leaves both and tells you.</li>
 </ul>
 
 <h2>What It Warns About</h2>
@@ -47,7 +48,7 @@
 
 <ul>
 <li><strong>Wrong Java version:</strong> a mod built for a newer Java than the one your game runs on.</li>
-<li><strong>Duplicate mods:</strong> the same mod in your mods folder twice, usually an old version left behind after an update.</li>
+<li><strong>Duplicate mods it can't sort out:</strong> for example on servers that don't record when files were added, or on NeoForge 21.9 and newer, where NeoForge loads the highest version itself.</li>
 </ul>
 
 <h2>Real Examples</h2>
@@ -113,6 +114,7 @@
 <li><code>mode</code>: <code>"auto"</code> fixes and approves (default), <code>"report"</code> only writes the report, <code>"off"</code> does nothing.</li>
 <li><code>bridgeCalls</code>: set to <code>false</code> to only approve mods that match exactly, with no fixes.</li>
 <li><code>ignore</code>: mod pairs to leave alone, written as <code>"modA-&gt;modB"</code> or <code>"modA-&gt;neoforge"</code>.</li>
+<li><code>disableDuplicates</code>: set to <code>false</code> to only warn about duplicate mods instead of disabling the older copy.</li>
 <li><code>forceApprove</code>: mod pairs to allow even when problems are found. <strong>This can crash your game.</strong></li>
 </ul>
 

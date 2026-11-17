@@ -53,8 +53,9 @@ final class Diagnostics {
                 files.add(entry.jar().name() + " (" + entry.version() + ")");
             }
             if (files.size() > 1) {
+                String why = Duplicates.last().kept.get(e.getKey());
                 warnings.add(e.getKey() + " is in the mods folder more than once: " + join(files)
-                        + ". Keep only one of them.");
+                        + ". Keep only one of them." + (why == null ? "" : " Linkwright left them all because " + why + "."));
             }
         }
     }

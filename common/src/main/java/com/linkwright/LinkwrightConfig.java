@@ -36,6 +36,11 @@ public final class LinkwrightConfig {
             + "# one lossless way to do it. Set to false to only approve exact matches.\n"
             + "bridgeCalls = true\n"
             + "\n"
+            + "# When a mod is in the mods folder more than once, keep the copy added last and disable the\n"
+            + "# others by renaming them to .jar.disabled. Only happens when the files' creation times\n"
+            + "# clearly show which came last; otherwise both stay and the report explains why.\n"
+            + "disableDuplicates = true\n"
+            + "\n"
             + "# Rules Linkwright should never touch, written as \"dependent->dependency\".\n"
             + "# Example: ignore = [\"somemod->create\", \"othermod->neoforge\"]\n"
             + "ignore = []\n"
@@ -46,12 +51,19 @@ public final class LinkwrightConfig {
 
     private final Mode mode;
     private final boolean bridgeCalls;
+    private final boolean disableDuplicates;
     private final Set<String> ignore;
     private final Set<String> forceApprove;
 
     public LinkwrightConfig(Mode mode, boolean bridgeCalls, Set<String> ignore, Set<String> forceApprove) {
+        this(mode, bridgeCalls, true, ignore, forceApprove);
+    }
+
+    public LinkwrightConfig(Mode mode, boolean bridgeCalls, boolean disableDuplicates, Set<String> ignore,
+                            Set<String> forceApprove) {
         this.mode = mode;
         this.bridgeCalls = bridgeCalls;
+        this.disableDuplicates = disableDuplicates;
         this.ignore = Collections.unmodifiableSet(new LinkedHashSet<>(ignore));
         this.forceApprove = Collections.unmodifiableSet(new LinkedHashSet<>(forceApprove));
     }
@@ -62,6 +74,10 @@ public final class LinkwrightConfig {
 
     public boolean bridgeCalls() {
         return bridgeCalls;
+    }
+
+    public boolean disableDuplicates() {
+        return disableDuplicates;
     }
 
     public Set<String> ignore() {
@@ -94,7 +110,10 @@ public final class LinkwrightConfig {
             }
             Object bridgeValue = config.get("bridgeCalls");
             boolean bridge = !(bridgeValue instanceof Boolean) || (Boolean) bridgeValue;
-            return new LinkwrightConfig(mode, bridge, pairs(config.get("ignore")), pairs(config.get("forceApprove")));
+            Object duplicatesValue = config.get("disableDuplicates");
+            boolean duplicates = !(duplicatesValue instanceof Boolean) || (Boolean) duplicatesValue;
+            return new LinkwrightConfig(mode, bridge, duplicates, pairs(config.get("ignore")),
+                    pairs(config.get("forceApprove")));
         } catch (Exception e) {
             LwLog.warn("Could not read " + file + " (" + e.getMessage() + "); using defaults");
             return defaults();

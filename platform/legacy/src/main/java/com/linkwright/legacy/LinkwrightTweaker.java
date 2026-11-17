@@ -22,6 +22,7 @@ public final class LinkwrightTweaker implements ITweaker {
     public void injectIntoClassLoader(LaunchClassLoader classLoader) {
         classLoader.addTransformerExclusion("com.linkwright.");
         classLoader.registerTransformer(LinkwrightTransformer.class.getName());
+        LegacyHook.prepare();
     }
 
     @Override

@@ -10,6 +10,7 @@ import com.linkwright.scan.Dependency;
 import com.linkwright.scan.Dist;
 import com.linkwright.scan.ModEntry;
 import com.linkwright.scan.ModJar;
+import com.linkwright.scan.ModReader;
 import com.linkwright.scan.ModScanner;
 import com.linkwright.version.VersionScheme;
 
@@ -94,7 +95,34 @@ public final class Linkwright {
 
     private static final Pattern VERSION_NUMBER = Pattern.compile("\\d+(?:\\.\\d+)*(?:-[0-9A-Za-z.]+)?");
 
+    private static boolean prepared;
+
     private Linkwright() {
+    }
+
+    /**
+     * Fixes what can be fixed in the mods folder itself. Only call it before the loader lists the
+     * folder: a loader that already holds a jar would keep reading a file that is no longer there.
+     */
+    public static void prepare(LoaderPlatform platform) {
+        prepare(platform.gameDir(), platform.modDirs(), platform.readers(), platform.versions());
+    }
+
+    /** For loaders where the full {@link LoaderPlatform} is not ready yet this early. */
+    public static synchronized void prepare(Path gameDir, List<Path> modDirs, List<ModReader> readers,
+                                            VersionScheme versions) {
+        if (prepared) {
+            return;
+        }
+        prepared = true;
+        try {
+            LinkwrightConfig config = LinkwrightConfig.load(gameDir.resolve("config").resolve("linkwright.toml"));
+            if (config.mode() == LinkwrightConfig.Mode.AUTO && config.disableDuplicates()) {
+                Duplicates.resolve(modDirs, readers, versions);
+            }
+        } catch (Throwable t) {
+            LwLog.error("Linkwright could not check the mods folder for duplicate mods", t);
+        }
     }
 
     public static Result run(LoaderPlatform platform) throws Exception {
@@ -106,8 +134,10 @@ public final class Linkwright {
             return Result.EMPTY;
         }
         Analysis analysis = analyze(platform, config);
+        List<String> reported = new ArrayList<>(Duplicates.last().disabled);
+        reported.addAll(analysis.warnings);
         ReportWriter.write(gameDir.resolve("logs").resolve("linkwright-report.txt"), config, platform,
-                analysis.result.reports, analysis.approved, analysis.warnings);
+                analysis.result.reports, analysis.approved, reported);
         for (String warning : analysis.warnings) {
             LwLog.warn("Linkwright: " + warning);
         }

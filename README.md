@@ -113,14 +113,31 @@ the loader's own jar, and approves the rule only when all of them still resolve.
 A mod that needs a newer loader than the one installed is left alone, since updating the loader
 is the fix.
 
+### Duplicate mods
+
+When the same mod is in the mods folder more than once, usually an old version left behind by an
+update, Linkwright keeps the copy that was added to the folder last and disables the others by
+renaming them to `.jar.disabled`. Going by when each file arrived, not by version number, means a
+deliberate downgrade wins over the newer version it replaces. Launchers such as Prism and the
+CurseForge app show a `.jar.disabled` file as a disabled mod, so it can be switched back on.
+
+This happens before the loader reads the mods folder, so the game starts normally on the same
+launch. Only a file's creation time records when it arrived (the modified time is often copied
+from the download), so both copies stay, with a warning saying why, when:
+
+- the file system does not record creation times, as on many Linux servers;
+- the copies arrived within a minute of each other, such as in one pack install;
+- the older copy also contains a mod the newer one does not;
+- the older copy is a jar the loader loads before Linkwright runs, or is in use.
+
+On NeoForge 21.9 and newer the loader has opened every jar before Linkwright runs, so Linkwright
+only warns there. NeoForge itself then loads the copy with the highest version.
+
 ### Warnings
 
-Two problems Linkwright cannot fix, but points out in the log and at the top of the report before
-they stop the game:
-
-- A jar built for a newer Java than the game runs on, which would otherwise crash with an
-  `UnsupportedClassVersionError` once it loads.
-- The same mod in the mods folder more than once, usually an old version left behind by an update.
+One problem Linkwright cannot fix, but points out in the log and at the top of the report: a jar
+built for a newer Java than the game runs on, which would otherwise crash with an
+`UnsupportedClassVersionError` once it loads.
 
 ## Adapters
 
@@ -209,6 +226,7 @@ Linkwright fixes version rules between mods, not differences between your client
 | `mode` | `"auto"` | `auto` approves verified rules and applies adapters; `report` only writes the report; `off` does nothing |
 | `bridgeCalls` | `true` | Apply adapters. When `false`, any changed link is a problem |
 | `ignore` | `[]` | Rules to leave alone, as `"dependent->dependency"`, such as `"somemod->create"` or `"othermod->neoforge"` |
+| `disableDuplicates` | `true` | Disable older copies of a mod that is in the mods folder more than once (see [Duplicate mods](#duplicate-mods)) |
 | `forceApprove` | `[]` | Rules to approve even when problems are found. This can crash the game |
 
 ## Building
