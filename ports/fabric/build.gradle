@@ -5,6 +5,8 @@ dependencies {
     // since the agent can sit in a different class loader than the loader itself.
     compileOnly('net.fabricmc:fabric-loader:0.14.17') { transitive = false }
     compileOnly 'org.ow2.asm:asm-tree:9.7'
+    compileOnly 'org.ow2.asm:asm-analysis:9.7'
+    compileOnly 'org.ow2.asm:asm-commons:9.7'
     // The Log4j that Minecraft 1.14 ships, the oldest Fabric runs.
     compileOnly 'org.apache.logging.log4j:log4j-api:2.8.1'
 }

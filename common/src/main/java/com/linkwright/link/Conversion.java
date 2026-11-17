@@ -108,6 +108,110 @@ public abstract class Conversion {
         }
     }
 
+    /**
+     * Takes the value out of a {@code Supplier}, an {@code Optional} or a Minecraft
+     * {@code Holder}. Generics are erased at runtime, so the result is cast back to the expected
+     * type; the cast can only be inserted once the generic signature of the new field or method
+     * proves the wrapper holds exactly that type or a subtype of it.
+     */
+    static final class Unwrap extends Conversion {
+        final String label;
+        final int opcode;
+        final String owner;
+        final String name;
+        final String desc;
+        final boolean itf;
+        /** {@code Optional.orElse(null)}: an empty Optional becomes the null the old API returned. */
+        final boolean orElseNull;
+        final Type to;
+
+        Unwrap(String label, int opcode, String owner, String name, String desc, boolean itf, boolean orElseNull, Type to) {
+            this.label = label;
+            this.opcode = opcode;
+            this.owner = owner;
+            this.name = name;
+            this.desc = desc;
+            this.itf = itf;
+            this.orElseNull = orElseNull;
+            this.to = to;
+        }
+
+        @Override
+        public String label() {
+            return label;
+        }
+
+        @Override
+        public void emit(InsnList out, InsnList load) {
+            out.add(load);
+            if (orElseNull) {
+                out.add(new InsnNode(Opcodes.ACONST_NULL));
+            }
+            out.add(new MethodInsnNode(opcode, owner, name, desc, itf));
+            out.add(new TypeInsnNode(Opcodes.CHECKCAST, to.getInternalName()));
+        }
+    }
+
+    private static final String SUPPLIER = "java/util/function/Supplier";
+    private static final String OPTIONAL = "java/util/Optional";
+
+    /**
+     * Returns a conversion that unwraps {@code from} (the generic type of the new field or
+     * method) to {@code to}, or {@code null} unless what it holds is provably a {@code to}.
+     */
+    static Conversion unwrap(Signatures.GType from, Type to, Hierarchy hierarchy) {
+        if (from == null || from.kind != 'L' || (to.getSort() != Type.OBJECT && to.getSort() != Type.ARRAY)) {
+            return null;
+        }
+        Type erased = Type.getObjectType(from.name);
+        ClassIndex index = hierarchy.index();
+        if (Boolean.TRUE.equals(hierarchy.isAssignable(erased, Type.getObjectType(SUPPLIER)))) {
+            Type held = Signatures.argumentOf(from, SUPPLIER, 0, index);
+            return held != null && Boolean.TRUE.equals(hierarchy.isAssignable(held, to))
+                    ? new Unwrap(simple(from.name) + ".get()", Opcodes.INVOKEINTERFACE, SUPPLIER, "get", "()Ljava/lang/Object;", true, false, to)
+                    : null;
+        }
+        if (from.name.equals(OPTIONAL)) {
+            Type held = Signatures.argumentOf(from, OPTIONAL, 0, index);
+            return held != null && Boolean.TRUE.equals(hierarchy.isAssignable(held, to))
+                    ? new Unwrap("Optional.orElse(null)", Opcodes.INVOKEVIRTUAL, OPTIONAL, "orElse",
+                    "(Ljava/lang/Object;)Ljava/lang/Object;", false, true, to)
+                    : null;
+        }
+        String holder = hierarchy.names().holder;
+        if (holder != null && Boolean.TRUE.equals(hierarchy.isAssignable(erased, Type.getObjectType(holder)))) {
+            Type held = Signatures.argumentOf(from, holder, 0, index);
+            String value = holderValue(hierarchy, holder);
+            return held != null && value != null && Boolean.TRUE.equals(hierarchy.isAssignable(held, to))
+                    ? new Unwrap(simple(from.name) + ".value()", Opcodes.INVOKEINTERFACE, holder, value, "()Ljava/lang/Object;", true, false, to)
+                    : null;
+        }
+        return null;
+    }
+
+    /** The one method of {@code Holder<T>} that returns its {@code T}, whatever it is named in this mapping set. */
+    private static String holderValue(Hierarchy hierarchy, String holder) {
+        ClassInfo info = hierarchy.index().info(holder);
+        if (info == null || !info.isInterface()) {
+            return null;
+        }
+        List<String> params = Signatures.typeParameters(info);
+        if (params == null || params.size() != 1) {
+            return null;
+        }
+        String name = null;
+        for (ClassInfo.Member m : info.methods.values()) {
+            if (!m.isStatic() && (m.access() & Opcodes.ACC_PUBLIC) != 0 && m.desc().equals("()Ljava/lang/Object;")
+                    && ("()T" + params.get(0) + ";").equals(m.signature())) {
+                if (name != null) {
+                    return null;
+                }
+                name = m.name();
+            }
+        }
+        return name;
+    }
+
     /** The Minecraft conversions, resolved against the runtime names of the classes involved. */
     static List<Call> minecraftConversions(McNames names, Hierarchy hierarchy) {
         List<Call> calls = new ArrayList<>();

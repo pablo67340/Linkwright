@@ -37,12 +37,15 @@ On every launch, before NeoForge checks dependency versions, Linkwright:
 2. For each broken rule, walks the dependent mod's bytecode and resolves every class, method and
    field it uses in the dependency, through inheritance into Minecraft and NeoForge. It also
    checks the dependent mod's mixins into the dependency (target classes, injector selectors,
-   `@At` targets, shadows, overwrites, accessors and invokers), and that classes extending the
-   dependency still implement its abstract methods.
+   `@At` targets, shadows, overwrites, accessors and invokers), that classes extending the
+   dependency still implement its abstract methods, and that every member is still accessible
+   and still static (or not) the way the dependent mod calls it.
 3. When something the dependent mod uses changed shape, looks for exactly one safe way to adapt
    it, and patches the dependent mod's class as it loads (see [Adapters](#adapters)). If more than
    one adaptation fits, or none does, it is left as a problem rather than guessed at.
-4. If every link resolves or is adapted, it adds the rule to NeoForge's dependency overrides in
+4. Patches every adapted class in memory and verifies the result before approving anything (see
+   [Verification](#verification)).
+5. If every link resolves or is adapted, it adds the rule to NeoForge's dependency overrides in
    memory, so the game keeps launching. Otherwise NeoForge's error stays, and the report says
    exactly what is missing.
 
@@ -104,10 +107,30 @@ they stop the game:
 | A parameter, return or field type changed | Converts the value at the call site, if the conversion is lossless (below) |
 | A method now returns something where it returned `void` | Discards the result |
 | An interface or abstract class requires a method with different types | Adds that method to the dependent mod's class, delegating to its existing method of the same name |
+| A value is now wrapped in a `Supplier`, `Optional` or Minecraft `Holder` | Unwraps it where it is used (`get()`, `orElse(null)` or the holder's value), only when the generic types prove the wrapped value is the old type |
+| A public field was replaced by a getter or setter, or the other way around | Reads through the getter (`getX()`, `isX()` or `x()`) and writes through the setter, or uses the field directly |
+| A getter was renamed record-style, such as `getName()` to `name()`, or back | Calls the new name, and renames the dependent mod's own implementations that the dependency calls |
+| A method or constructor lost parameters | Drops the arguments that are no longer needed, when only one choice of which ones fits |
+| A class moved to another package in the same mod | Points every reference at the new package, unless a mixin, a string or a resource file mentions the old name |
+| A method became static, or stopped being static | Drops the unused receiver, passes the first argument as the receiver or the receiver as the first argument, or calls the class's single shared instance |
+| A class became an interface, or the other way around | Switches the call instruction to match |
 
 Lossless conversions: subtype to supertype, primitive widening (`int` to `long`, `float` to
 `double` and so on), boxing and unboxing, `BlockPos` and `long`, `ChunkPos` and `long`,
 `ResourceLocation` and `String`, and `Vec3i` to `BlockPos`.
+
+## Verification
+
+An adapter is only used once it has been proven safe. Before a rule is approved, Linkwright
+patches each affected class in memory, without loading it, and runs it through ASM's bytecode
+verifier with the types taken from the installed mods. Every method that verified before must
+still verify, and every stack map frame must still match. The patched class is then link checked
+again from scratch. If any of this fails, the rule is refused and the report says which class
+failed and why.
+
+On a game whose ASM has no bytecode verifier, rules that need adapters are refused, while rules
+that need none are still approved. The Forge 1.13 to 1.16.5 jar carries ASM's analysis package
+for this reason, since Forge 1.13.2 and 1.14.4 do not put it on the classpath.
 
 ## What it will not do
 
@@ -118,8 +141,9 @@ Lossless conversions: subtype to supertype, primitive widening (`int` to `long`,
   `int`, `float` and other primitive parameters are never filled in, and a change with more than
   one possible adaptation is reported instead of patched.
 - **Check behaviour.** A method that keeps its signature but changes what it does still passes.
-- **Follow renames.** Removed methods with no same-named replacement, and renamed classes, cannot
-  be adapted.
+- **Follow arbitrary renames.** Apart from the getter styles above, a removed method with no
+  same-named replacement cannot be adapted. A moved class is followed only when it keeps its
+  name, and only inside the dependency's own package tree.
 
 Links that lead into libraries Linkwright cannot see (for example DataFixerUpper or fastutil) are
 assumed present and counted separately in the report. Calls made from mixin classes, or through

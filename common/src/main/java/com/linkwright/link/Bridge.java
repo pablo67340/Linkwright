@@ -65,6 +65,41 @@ public final class Bridge implements Patch {
         }
     }
 
+    /** What happens to the object the old call was made on, when the new call is static where the old was not, or the reverse. */
+    public enum Receiver {
+        /** Unchanged: there is none, or it stays where it is. */
+        SAME,
+        /** The old instance method is static now and needs no object; it is discarded. */
+        DROP,
+        /** The old static method's first argument is now the object the method is called on. */
+        FROM_ARG0,
+        /** The old instance method is static now and takes the object as its first parameter. */
+        AS_ARG0,
+        /** The old static method is an instance method now, called on the class's one singleton. */
+        SINGLETON
+    }
+
+    /** A public static final field or public static method that hands out a class's singleton. */
+    public static final class Singleton {
+        public final boolean field;
+        public final String owner;
+        public final String name;
+        public final String desc;
+        public final boolean itf;
+
+        public Singleton(boolean field, String owner, String name, String desc, boolean itf) {
+            this.field = field;
+            this.owner = owner;
+            this.name = name;
+            this.desc = desc;
+            this.itf = itf;
+        }
+
+        String describe() {
+            return simple(Type.getObjectType(owner)) + "." + name + (field ? "" : "()");
+        }
+    }
+
     public final String callerClass;
     public final String callerName;
     public final String callerDesc;
@@ -79,9 +114,23 @@ public final class Bridge implements Patch {
     public final Conversion returnConversion;
     /** Stack slots to discard when the new method returns a value and the old one was {@code void}. */
     public final int popSize;
+    public final int newOpcode;
+    public final String newOwner;
+    public final String newName;
+    public final boolean newItf;
+    public final Receiver receiver;
+    /** For {@link Receiver#SINGLETON}. */
+    public final Singleton singleton;
 
     public Bridge(String callerClass, String callerName, String callerDesc, int opcode, String owner, String name,
                   String oldDesc, String newDesc, boolean itf, List<Arg> args, Conversion returnConversion, int popSize) {
+        this(callerClass, callerName, callerDesc, opcode, owner, name, oldDesc, newDesc, itf, args, returnConversion, popSize,
+                opcode, owner, name, itf, Receiver.SAME, null);
+    }
+
+    public Bridge(String callerClass, String callerName, String callerDesc, int opcode, String owner, String name,
+                  String oldDesc, String newDesc, boolean itf, List<Arg> args, Conversion returnConversion, int popSize,
+                  int newOpcode, String newOwner, String newName, boolean newItf, Receiver receiver, Singleton singleton) {
         this.callerClass = callerClass;
         this.callerName = callerName;
         this.callerDesc = callerDesc;
@@ -94,6 +143,23 @@ public final class Bridge implements Patch {
         this.args = Collections.unmodifiableList(new ArrayList<>(args));
         this.returnConversion = returnConversion;
         this.popSize = popSize;
+        this.newOpcode = newOpcode;
+        this.newOwner = newOwner;
+        this.newName = newName;
+        this.newItf = newItf;
+        this.receiver = receiver;
+        this.singleton = singleton;
+    }
+
+    /** Old arguments the new signature no longer takes. */
+    public int dropped() {
+        int used = receiver == Receiver.FROM_ARG0 ? 1 : 0;
+        for (Arg a : args) {
+            if (a instanceof FromOld) {
+                used++;
+            }
+        }
+        return Type.getArgumentTypes(oldDesc).length - used;
     }
 
     @Override
@@ -126,22 +192,53 @@ public final class Bridge implements Patch {
         StringBuilder sb = new StringBuilder();
         sb.append(dotted(callerClass)).append('.').append(callerName).append(": calls ")
                 .append(dotted(owner)).append('.').append(name).append(oldDesc)
-                .append(" as ").append(newDesc);
+                .append(" as ");
+        if (!newOwner.equals(owner)) {
+            sb.append(dotted(newOwner)).append('.');
+        }
+        if (!newName.equals(name) || !newOwner.equals(owner)) {
+            sb.append(newName);
+        }
+        sb.append(newDesc);
         List<String> notes = new ArrayList<>();
+        switch (receiver) {
+            case DROP:
+                notes.add("now static, the object it was called on is not needed");
+                break;
+            case FROM_ARG0:
+                notes.add("now called on argument 1");
+                break;
+            case AS_ARG0:
+                notes.add("now static, the object it was called on is passed as parameter 1");
+                break;
+            case SINGLETON:
+                notes.add("now called on " + singleton.describe());
+                break;
+            default:
+                if (newItf != itf && newOwner.equals(owner)) {
+                    notes.add(newItf ? "now an interface" : "no longer an interface");
+                }
+                break;
+        }
         Type[] newArgs = Type.getArgumentTypes(newDesc);
+        int offset = receiver == Receiver.AS_ARG0 ? 1 : 0;
         for (int j = 0; j < args.size(); j++) {
             Arg arg = args.get(j);
+            int position = j + offset;
             if (arg instanceof FromScope) {
-                notes.add("new parameter " + (j + 1) + " (" + simple(newArgs[j]) + ") from "
+                notes.add("new parameter " + (position + 1) + " (" + simple(newArgs[position]) + ") from "
                         + ((FromScope) arg).source.description);
             } else if (arg instanceof FromOld) {
                 FromOld old = (FromOld) arg;
                 if (!old.conversion.isIdentity()) {
                     notes.add("argument " + (old.index + 1) + " via " + old.conversion.label());
-                } else if (old.index != j) {
-                    notes.add("argument " + (old.index + 1) + " moved to position " + (j + 1));
+                } else if (old.index != position && receiver == Receiver.SAME) {
+                    notes.add("argument " + (old.index + 1) + " moved to position " + (position + 1));
                 }
             }
+        }
+        if (receiver == Receiver.SAME && dropped() > 0) {
+            notes.add(dropped() + " old argument" + (dropped() > 1 ? "s" : "") + " no longer needed");
         }
         if (!returnConversion.isIdentity()) {
             notes.add("result via " + returnConversion.label());

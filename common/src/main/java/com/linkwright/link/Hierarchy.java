@@ -50,6 +50,10 @@ public final class Hierarchy {
         return index;
     }
 
+    McNames names() {
+        return names;
+    }
+
     synchronized List<Conversion.Call> knownConversions() {
         if (knownConversions == null) {
             knownConversions = Conversion.minecraftConversions(names, this);
@@ -154,6 +158,31 @@ public final class Hierarchy {
             }
         }
         return unknown ? Resolution.UNKNOWN : Resolution.MISSING;
+    }
+
+    /** The indexed method a reference resolves to, nearest declaration first; {@code null} when it is not indexed. */
+    public ClassInfo.Member findMethod(String owner, String name, String desc) {
+        for (ClassInfo info : ancestors(owner)) {
+            ClassInfo.Member m = info.method(name, desc);
+            if (m != null) {
+                return m;
+            }
+            if ("<init>".equals(name)) {
+                break;
+            }
+        }
+        return null;
+    }
+
+    /** The indexed field a reference resolves to, nearest declaration first; {@code null} when it is not indexed. */
+    public ClassInfo.Member findField(String owner, String name, String desc) {
+        for (ClassInfo info : ancestors(owner)) {
+            ClassInfo.Member f = info.field(name, desc);
+            if (f != null) {
+                return f;
+            }
+        }
+        return null;
     }
 
     /** Methods with this name visible from {@code owner}, nearest declaration first. */
@@ -285,7 +314,7 @@ public final class Hierarchy {
                 || internalName.startsWith("sun/");
     }
 
-    private static Class<?> jdkClass(String internalName) {
+    static Class<?> jdkClass(String internalName) {
         if (!isJdkName(internalName)) {
             return null;
         }

@@ -33,6 +33,12 @@
 <li><strong>Changed types:</strong> a value changed type, like a number becoming a bigger number type. Linkwright converts it, as long as nothing is lost.</li>
 <li><strong>Interface changes:</strong> a required method changed its types. Linkwright adds the new version and points it at the old one.</li>
 <li><strong>New return values:</strong> a method now returns something extra. Linkwright ignores it.</li>
+<li><strong>Removed parameters:</strong> a method needs fewer inputs than before. Linkwright leaves out the extra ones.</li>
+<li><strong>Wrapped values:</strong> a value is now handed over inside a wrapper, such as a Supplier, Optional or Holder. Linkwright unwraps it.</li>
+<li><strong>Fields and getters:</strong> a field was swapped for a getter or setter method, or the other way around. Linkwright uses whichever one exists now.</li>
+<li><strong>Renamed getters:</strong> a method like <code>getName()</code> was renamed to <code>name()</code>, or back. Linkwright follows the new name.</li>
+<li><strong>Moved classes:</strong> a class moved to another package in the same mod. Linkwright points the mod at its new home.</li>
+<li><strong>Static changes:</strong> a method became static, or stopped being static. Linkwright adjusts the call to match.</li>
 </ul>
 
 <h2>What It Warns About</h2>
@@ -55,6 +61,7 @@
 
 <ul>
 <li><strong>It never guesses.</strong> If there is more than one possible fix, or none, it leaves the error in place.</li>
+<li><strong>It tests every fix first.</strong> Each fixed class is checked in memory before the game is allowed to start. If a fix would fail, it is not used, and you get the normal error instead of a crash.</li>
 <li><strong>It respects mod authors.</strong> If a mod is marked as incompatible with another on purpose, Linkwright leaves it alone.</li>
 <li><strong>It never loses data.</strong> Values are only converted when nothing can be lost.</li>
 <li><strong>It tells you everything.</strong> Every decision is written to <code>logs/linkwright-report.txt</code>.</li>
@@ -113,7 +120,7 @@
 
 <ul>
 <li>It checks that mods fit together, not what the code does. A method that works differently but looks the same will still pass.</li>
-<li>Removed methods and renamed classes can't be fixed.</li>
+<li>Methods that were removed, or renamed to something new, can't be fixed. Moved classes are only followed when they keep their name.</li>
 <li>If a mod needs a newer loader than yours, Linkwright leaves it alone. Update your loader instead.</li>
 </ul>
 

@@ -11,49 +11,53 @@ package com.linkwright.link;
  * simply unavailable when that is not unique.
  */
 public final class McNames {
-    public static final McNames NONE = new McNames(null, null, null, null, false);
+    public static final McNames NONE = new McNames(null, null, null, null, null, false);
 
     /** NeoForge 1.20.5+ and Forge 1.20.6+. */
     public static final McNames MOJANG = new McNames("net/minecraft/core/BlockPos", "net/minecraft/core/Vec3i",
-            "net/minecraft/world/level/ChunkPos", "net/minecraft/resources/ResourceLocation", true);
+            "net/minecraft/world/level/ChunkPos", "net/minecraft/resources/ResourceLocation", "net/minecraft/core/Holder", true);
 
     /** Forge 1.17 to 1.20.4 and NeoForge 20.2 to 20.4: Mojang class names, SRG member names. */
     public static final McNames SRG = new McNames("net/minecraft/core/BlockPos", "net/minecraft/core/Vec3i",
-            "net/minecraft/world/level/ChunkPos", "net/minecraft/resources/ResourceLocation", false);
+            "net/minecraft/world/level/ChunkPos", "net/minecraft/resources/ResourceLocation", "net/minecraft/core/Holder", false);
 
     /** Forge 1.16. */
     public static final McNames MCP_116 = new McNames("net/minecraft/util/math/BlockPos",
             "net/minecraft/util/math/vector/Vector3i", "net/minecraft/util/math/ChunkPos",
-            "net/minecraft/util/ResourceLocation", false);
+            "net/minecraft/util/ResourceLocation", null, false);
 
     /** Forge 1.9 to 1.15. */
     public static final McNames MCP = new McNames("net/minecraft/util/math/BlockPos", "net/minecraft/util/math/Vec3i",
-            "net/minecraft/util/math/ChunkPos", "net/minecraft/util/ResourceLocation", false);
+            "net/minecraft/util/math/ChunkPos", "net/minecraft/util/ResourceLocation", null, false);
 
     /** Forge 1.8. */
     public static final McNames MCP_18 = new McNames("net/minecraft/util/BlockPos", "net/minecraft/util/Vec3i",
-            "net/minecraft/world/ChunkCoordIntPair", "net/minecraft/util/ResourceLocation", false);
+            "net/minecraft/world/ChunkCoordIntPair", "net/minecraft/util/ResourceLocation", null, false);
 
     /** Forge 1.7, before block positions had a class of their own. */
     public static final McNames MCP_17 = new McNames(null, null, "net/minecraft/world/ChunkCoordIntPair",
-            "net/minecraft/util/ResourceLocation", false);
+            "net/minecraft/util/ResourceLocation", null, false);
 
     /** Fabric and Quilt. */
     public static final McNames INTERMEDIARY = new McNames("net/minecraft/class_2338", "net/minecraft/class_2382",
-            "net/minecraft/class_1923", "net/minecraft/class_2960", false);
+            "net/minecraft/class_1923", "net/minecraft/class_2960", "net/minecraft/class_6880", false);
 
     public final String blockPos;
     public final String vec3i;
     public final String chunkPos;
     public final String resourceLocation;
+    /** The registry holder interface, from Minecraft 1.18.2. */
+    public final String holder;
     /** Whether Mojang's member names ({@code asLong}, {@code of}, ...) are the runtime names. */
     public final boolean mojangMembers;
 
-    public McNames(String blockPos, String vec3i, String chunkPos, String resourceLocation, boolean mojangMembers) {
+    public McNames(String blockPos, String vec3i, String chunkPos, String resourceLocation, String holder,
+                   boolean mojangMembers) {
         this.blockPos = blockPos;
         this.vec3i = vec3i;
         this.chunkPos = chunkPos;
         this.resourceLocation = resourceLocation;
+        this.holder = holder;
         this.mojangMembers = mojangMembers;
     }
 }

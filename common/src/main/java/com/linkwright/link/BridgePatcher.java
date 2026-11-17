@@ -2,6 +2,7 @@ package com.linkwright.link;
 
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.SimpleRemapper;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -11,8 +12,12 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Applies {@link Patch}es to a class. Rewritten call sites move their arguments into fresh local
@@ -26,11 +31,28 @@ public final class BridgePatcher {
     /** Returns how many call sites, field accesses and methods were rewritten or added. */
     public static int apply(ClassNode node, List<? extends Patch> patches) {
         int patched = 0;
+        Map<String, String> moves = new HashMap<>();
+        for (Patch patch : patches) {
+            if (patch instanceof ClassMove && patch.targetClass().equals(node.name)) {
+                moves.putAll(((ClassMove) patch).moves);
+            }
+        }
+        if (!moves.isEmpty()) {
+            remap(node, moves);
+            patched++;
+        }
         for (Patch patch : patches) {
             if (!patch.targetClass().equals(node.name)) {
                 continue;
             }
-            if (patch instanceof Bridge) {
+            if (patch instanceof AccessorBridge) {
+                AccessorBridge accessor = (AccessorBridge) patch;
+                for (MethodNode method : node.methods) {
+                    if (method.name.equals(accessor.callerName) && method.desc.equals(accessor.callerDesc)) {
+                        patched += applyAccessor(method, accessor);
+                    }
+                }
+            } else if (patch instanceof Bridge) {
                 Bridge bridge = (Bridge) patch;
                 for (MethodNode method : node.methods) {
                     if (method.name.equals(bridge.callerName) && method.desc.equals(bridge.callerDesc)) {
@@ -82,6 +104,21 @@ public final class BridgePatcher {
             for (int i = oldArgs.length - 1; i >= 0; i--) {
                 before.add(new VarInsnNode(oldArgs[i].getOpcode(Opcodes.ISTORE), slots[i]));
             }
+            switch (bridge.receiver) {
+                case DROP:
+                    before.add(new InsnNode(Opcodes.POP));
+                    break;
+                case FROM_ARG0:
+                    before.add(load(oldArgs[0], slots[0]));
+                    break;
+                case SINGLETON:
+                    Bridge.Singleton s = bridge.singleton;
+                    before.add(s.field ? new FieldInsnNode(Opcodes.GETSTATIC, s.owner, s.name, s.desc)
+                            : new MethodInsnNode(Opcodes.INVOKESTATIC, s.owner, s.name, s.desc, s.itf));
+                    break;
+                default:
+                    break;
+            }
             for (Bridge.Arg arg : bridge.args) {
                 if (arg instanceof Bridge.FromOld) {
                     Bridge.FromOld old = (Bridge.FromOld) arg;
@@ -96,7 +133,11 @@ public final class BridgePatcher {
                 }
             }
             method.instructions.insertBefore(call, before);
+            call.setOpcode(bridge.newOpcode);
+            call.owner = bridge.newOwner;
+            call.name = bridge.newName;
             call.desc = bridge.newDesc;
+            call.itf = bridge.newItf;
 
             InsnList after = new InsnList();
             if (bridge.popSize > 0) {
@@ -147,6 +188,79 @@ public final class BridgePatcher {
             method.maxStack += 4;
         }
         return sites.size();
+    }
+
+    static int applyAccessor(MethodNode method, AccessorBridge bridge) {
+        List<AbstractInsnNode> sites = new ArrayList<>();
+        for (AbstractInsnNode insn : Asm.instructions(method.instructions)) {
+            if (insn.getOpcode() != bridge.opcode) {
+                continue;
+            }
+            if (insn instanceof FieldInsnNode) {
+                FieldInsnNode f = (FieldInsnNode) insn;
+                if (f.owner.equals(bridge.owner) && f.name.equals(bridge.name) && f.desc.equals(bridge.desc)) {
+                    sites.add(f);
+                }
+            } else if (insn instanceof MethodInsnNode) {
+                MethodInsnNode m = (MethodInsnNode) insn;
+                if (m.owner.equals(bridge.owner) && m.name.equals(bridge.name) && m.desc.equals(bridge.desc)) {
+                    sites.add(m);
+                }
+            }
+        }
+        boolean read = bridge.isRead();
+        boolean toField = bridge.newOpcode >= Opcodes.GETSTATIC && bridge.newOpcode <= Opcodes.PUTFIELD;
+        Type value = read ? (toField ? Type.getType(bridge.newDesc) : Type.getReturnType(bridge.newDesc))
+                : Type.getType(bridge.desc);
+        int slot = method.maxLocals;
+        for (AbstractInsnNode site : sites) {
+            AbstractInsnNode replacement = toField
+                    ? new FieldInsnNode(bridge.newOpcode, bridge.newOwner, bridge.newName, bridge.newDesc)
+                    : new MethodInsnNode(bridge.newOpcode, bridge.newOwner, bridge.newName, bridge.newDesc, bridge.newItf);
+            if (!read && !bridge.conversion.isIdentity()) {
+                InsnList convert = new InsnList();
+                convert.add(new VarInsnNode(value.getOpcode(Opcodes.ISTORE), slot));
+                bridge.conversion.emit(convert, load(value, slot));
+                method.instructions.insertBefore(site, convert);
+            }
+            method.instructions.set(site, replacement);
+            InsnList after = new InsnList();
+            if (read && !bridge.conversion.isIdentity()) {
+                after.add(new VarInsnNode(value.getOpcode(Opcodes.ISTORE), slot));
+                bridge.conversion.emit(after, load(value, slot));
+            }
+            if (bridge.popSize > 0) {
+                after.add(new InsnNode(bridge.popSize == 2 ? Opcodes.POP2 : Opcodes.POP));
+            }
+            if (after.size() > 0) {
+                method.instructions.insert(replacement, after);
+            }
+        }
+        if (!sites.isEmpty()) {
+            method.maxLocals = slot + 2;
+            method.maxStack += 4;
+        }
+        return sites.size();
+    }
+
+    /**
+     * Renames moved classes everywhere in the class, in place, so whatever holds the node (a
+     * loader's transformer chain) sees the change.
+     */
+    static void remap(ClassNode node, Map<String, String> moves) {
+        ClassNode remapped = new ClassNode();
+        node.accept(Asm.remapping(remapped, new SimpleRemapper(moves)));
+        for (Field field : ClassNode.class.getFields()) {
+            int mods = field.getModifiers();
+            if (Modifier.isStatic(mods) || Modifier.isFinal(mods)) {
+                continue;
+            }
+            try {
+                field.set(node, field.get(remapped));
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("Could not update " + field.getName() + " of " + node.name, e);
+            }
+        }
     }
 
     static int addImplementation(ClassNode node, ImplBridge impl) {

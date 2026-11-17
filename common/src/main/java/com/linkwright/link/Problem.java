@@ -8,7 +8,8 @@ public final class Problem {
         MISSING_FIELD("missing field"),
         MIXIN_TARGET("mixin target class missing"),
         MIXIN_MEMBER("mixin target member missing"),
-        UNIMPLEMENTED("abstract method not implemented");
+        UNIMPLEMENTED("abstract method not implemented"),
+        UNSAFE_PATCH("adapted class failed verification");
 
         public final String label;
 

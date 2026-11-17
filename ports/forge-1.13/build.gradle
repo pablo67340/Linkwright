@@ -11,6 +11,28 @@ dependencies {
     compileOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     compileOnly 'org.ow2.asm:asm-tree:7.2'
+    compileOnly 'org.ow2.asm:asm-analysis:7.2'
+    compileOnly 'org.ow2.asm:asm-commons:7.2'
     compileOnly 'org.apache.maven:maven-artifact:3.6.0'
     compileOnly 'org.apache.logging.log4j:log4j-api:2.11.2'
+}
+
+// Forge 1.13.2 and 1.14.4 download asm-analysis but leave it off the classpath, and Linkwright's
+// patch verifier needs it. Where the game has its own copy (1.15 on), that one loads first.
+configurations {
+    bundled
+}
+
+dependencies {
+    bundled('org.ow2.asm:asm-analysis:6.2') { transitive = false }
+}
+
+tasks.named('jar', Jar).configure {
+    from(configurations.bundled.collect { zipTree(it) }) {
+        exclude 'META-INF/**', 'module-info.class'
+    }
+    from(rootProject.file('common/asm-license.txt')) {
+        into 'META-INF'
+        rename { 'ASM-LICENSE.txt' }
+    }
 }

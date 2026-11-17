@@ -1,6 +1,8 @@
 package com.linkwright.link;
 
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.commons.Remapper;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 
@@ -25,6 +27,27 @@ public final class Asm {
             result.add(insn);
         }
         return result;
+    }
+
+    /**
+     * A visitor that renames classes on the way to {@code next}: ClassRemapper from ASM 5.2 on,
+     * RemappingClassAdapter before it (Forge 1.7.10 ships 5.0.3).
+     */
+    public static ClassVisitor remapping(ClassVisitor next, Remapper remapper) {
+        for (String name : new String[]{"org.objectweb.asm.commons.ClassRemapper", "org.objectweb.asm.commons.RemappingClassAdapter"}) {
+            Class<?> adapter;
+            try {
+                adapter = Class.forName(name, true, Remapper.class.getClassLoader());
+            } catch (ClassNotFoundException e) {
+                continue;
+            }
+            try {
+                return (ClassVisitor) adapter.getConstructor(ClassVisitor.class, Remapper.class).newInstance(next, remapper);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("Could not create " + name, e);
+            }
+        }
+        throw new IllegalStateException("This ASM has no class remapper");
     }
 
     private static int detectApi() {
