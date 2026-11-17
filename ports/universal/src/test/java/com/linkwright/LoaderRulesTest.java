@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -80,10 +81,56 @@ class LoaderRulesTest {
     }
 
     @Test
-    void leavesRulesThatNeedANewerLoader() throws Exception {
+    void readsWhetherAVersionIsALaterBuildOfTheSameLine() {
+        MavenVersions maven = MavenVersions.INSTANCE;
+        assertTrue(Linkwright.justBelowRange(maven, "[21.1.266,)", "21.1.265"));
+        assertTrue(Linkwright.justBelowRange(maven, "[21.1.300,21.2)", "21.1.265"));
+        assertFalse(Linkwright.justBelowRange(maven, "[21.2.5,)", "21.1.265"));
+        assertFalse(Linkwright.justBelowRange(maven, "[21.1,)", "21.0.200"));
+        assertFalse(Linkwright.justBelowRange(maven, "[21.1.200,21.1.250],[21.1.300,)", "21.1.265"));
+        assertFalse(Linkwright.justBelowRange(maven, "[21.1.243]", "21.1.265"));
+        assertFalse(Linkwright.justBelowRange(maven, "*", "21.1.265"));
+    }
+
+    /** Like armorhide, whose template pins the NeoForge build it was compiled against as the minimum. */
+    @Test
+    void approvesALaterBuildOfTheInstalledLoaderWhenEveryCallResolves() throws Exception {
+        Path mods = Files.createDirectories(temp.resolve("mods"));
+        jar(mods.resolve("armorhide.jar"), Map.of("ah/Main", caller("ah/Main", NEO, "hello")), toml("armorhide", "1.0.0",
+                "[[dependencies.armorhide]]\nmodId = \"neoforge\"\ntype = \"required\"\nversionRange = \"[21.1.266,)\"\n"));
+
+        Linkwright.Analysis analysis = Linkwright.analyze(platform(mods), LinkwrightConfig.defaults());
+        String report = ReportWriter.render(LinkwrightConfig.defaults(), "NeoForge", "client",
+                analysis.result.reports, null, analysis.warnings);
+        System.out.println(report);
+
+        PairReport pair = analysis.result.reports.get(0);
+        assertEquals(PairReport.Decision.APPROVED, pair.decision, pair.problems.toString());
+        assertTrue(pair.olderLoader);
+        assertEquals(Map.of("armorhide", List.of("neoforge")), analysis.result.overrides);
+        assertTrue(report.contains("asks for a later NeoForge build of the same release line"), report);
+
+        LinkwrightConfig off = new LinkwrightConfig(LinkwrightConfig.Mode.AUTO, true, true, false, Set.of(), Set.of());
+        assertTrue(Linkwright.analyze(platform(mods), off).result.reports.isEmpty());
+    }
+
+    @Test
+    void refusesALaterLoaderBuildWhenAMethodIsMissing() throws Exception {
+        Path mods = Files.createDirectories(temp.resolve("mods"));
+        jar(mods.resolve("newmod.jar"), Map.of("nm/Main", caller("nm/Main", NEO, "addedIn266")), toml("newmod", "1.0",
+                "[[dependencies.newmod]]\nmodId = \"neoforge\"\ntype = \"required\"\nversionRange = \"[21.1.266,)\"\n"));
+
+        Linkwright.Analysis analysis = Linkwright.analyze(platform(mods), LinkwrightConfig.defaults());
+
+        assertEquals(PairReport.Decision.REFUSED, analysis.result.reports.get(0).decision);
+        assertTrue(analysis.result.overrides.isEmpty());
+    }
+
+    @Test
+    void leavesRulesThatNeedANewerReleaseLine() throws Exception {
         Path mods = Files.createDirectories(temp.resolve("mods"));
         jar(mods.resolve("newmod.jar"), Map.of("nm/Main", caller("nm/Main", NEO, "hello")), toml("newmod", "1.0",
-                "[[dependencies.newmod]]\nmodId = \"neoforge\"\ntype = \"required\"\nversionRange = \"[21.1.300,)\"\n"));
+                "[[dependencies.newmod]]\nmodId = \"neoforge\"\ntype = \"required\"\nversionRange = \"[21.2.5,)\"\n"));
 
         Linkwright.Analysis analysis = Linkwright.analyze(platform(mods), LinkwrightConfig.defaults());
 

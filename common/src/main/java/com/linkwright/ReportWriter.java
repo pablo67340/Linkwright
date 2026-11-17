@@ -57,7 +57,11 @@ final class ReportWriter {
             out.append(r.dependent).append("  ->  ").append(r.dependency).append('\n');
             out.append("  Rule:     ").append(r.dependent.modId()).append(" asks for ").append(r.dependency.modId())
                     .append(' ').append(r.requiredRange).append(", installed is ").append(r.dependency.version()).append('\n');
-            if (r.dependency.isLoader()) {
+            if (r.olderLoader) {
+                out.append("  Note:     this mod asks for a later ").append(loaderName).append(" build of the same release")
+                        .append(" line; every class, method, field and mixin target it uses in ").append(loaderName)
+                        .append(" was checked\n");
+            } else if (r.dependency.isLoader()) {
                 out.append("  Note:     ").append(loaderName).append(" is newer than this mod allows; every class, method,")
                         .append(" field and mixin target it uses in ").append(loaderName).append(" was checked\n");
             }

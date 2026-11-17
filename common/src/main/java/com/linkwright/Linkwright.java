@@ -172,7 +172,7 @@ public final class Linkwright {
                     }
                 }
             }
-            List<Unmet> unmet = findUnmet(all, platform.dist(), skip, platform.versions());
+            List<Unmet> unmet = findUnmet(all, platform.dist(), skip, platform.versions(), config.olderLoaderBuilds());
             if (unmet.isEmpty()) {
                 return new Analysis(Result.EMPTY, Collections.<String, Set<String>>emptyMap(), mods.mods().size(), warnings);
             }
@@ -200,6 +200,8 @@ public final class Linkwright {
                 Set<String> relaxed = existing.get(dependentId);
                 boolean already = relaxed != null && relaxed.contains(dependencyId);
                 PairReport report = checker.check(u.dependent, u.dependency, u.rule.rangeSpec(), already);
+                report.olderLoader = u.dependency.isLoader()
+                        && !aboveRange(platform.versions(), u.rule.rangeSpec(), u.dependency.version());
                 reports.add(report);
 
                 if (config.ignore().contains(pair)) {
@@ -283,6 +285,50 @@ public final class Linkwright {
         return any;
     }
 
+    /**
+     * Whether {@code version} is older than every version {@code range} mentions, and differs from
+     * the lowest of them only in its last number, such as 21.1.265 against {@code [21.1.266,)}: a
+     * later build of the same release line, which keeps the same API.
+     */
+    static boolean justBelowRange(VersionScheme versions, String range, String version) {
+        Matcher matcher = VERSION_NUMBER.matcher(range);
+        String lowest = null;
+        while (matcher.find()) {
+            String mentioned = matcher.group();
+            try {
+                if (versions.compare(version, mentioned) >= 0) {
+                    return false;
+                }
+                if (lowest == null || versions.compare(mentioned, lowest) < 0) {
+                    lowest = mentioned;
+                }
+            } catch (RuntimeException e) {
+                return false;
+            }
+        }
+        return lowest != null && sameReleaseLine(lowest, version);
+    }
+
+    /** As many numbers in both, at least two, and all but the last equal. */
+    private static boolean sameReleaseLine(String a, String b) {
+        String[] x = numbers(a);
+        String[] y = numbers(b);
+        if (x.length < 2 || x.length != y.length) {
+            return false;
+        }
+        for (int i = 0; i < x.length - 1; i++) {
+            if (!x[i].equals(y[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String[] numbers(String version) {
+        int qualifier = version.indexOf('-');
+        return (qualifier < 0 ? version : version.substring(0, qualifier)).split("\\.");
+    }
+
     private static void addTo(Map<String, Set<String>> map, String key, String value) {
         Set<String> set = map.get(key);
         if (set == null) {
@@ -294,6 +340,12 @@ public final class Linkwright {
 
     public static List<Unmet> findUnmet(Map<String, ModEntry> mods, Dist dist, Set<String> platformIds,
                                         VersionScheme versions) {
+        return findUnmet(mods, dist, platformIds, versions, true);
+    }
+
+    /** @param olderLoaderBuilds also check rules that only a later build of the installed loader meets */
+    public static List<Unmet> findUnmet(Map<String, ModEntry> mods, Dist dist, Set<String> platformIds,
+                                        VersionScheme versions, boolean olderLoaderBuilds) {
         List<Unmet> unmet = new ArrayList<>();
         for (ModEntry dependent : mods.values()) {
             for (Dependency rule : dependent.dependencies()) {
@@ -314,8 +366,9 @@ public final class Linkwright {
                 if (satisfied == null || satisfied) {
                     continue;
                 }
-                // An older loader than a mod needs is fixed by updating the loader, not by relaxing the rule
-                if (dependency.isLoader() && !aboveRange(versions, rule.rangeSpec(), dependency.version())) {
+                // A loader from an older release line than a mod needs is fixed by updating the loader
+                if (dependency.isLoader() && !aboveRange(versions, rule.rangeSpec(), dependency.version())
+                        && !(olderLoaderBuilds && justBelowRange(versions, rule.rangeSpec(), dependency.version()))) {
                     continue;
                 }
                 unmet.add(new Unmet(dependent, dependency, rule));

@@ -110,8 +110,14 @@ NeoForge, Forge or Fabric Loader is newer than such a rule allows, Linkwright tr
 like any other dependency. It checks every class, method, field and mixin target the mod uses in
 the loader's own jar, and approves the rule only when all of them still resolve.
 
-A mod that needs a newer loader than the one installed is left alone, since updating the loader
-is the fix.
+Mods can also ask for a slightly newer loader than the one installed. Many mod templates set the
+minimum to the exact build the mod was compiled against, so a mod built on NeoForge 21.1.266
+refuses 21.1.265 even though nothing it uses changed between them. When the installed loader
+differs from the lowest version the rule names only in its last number (21.1.265 against
+`[21.1.266,)`, or Fabric Loader 0.16.9 against `>=0.16.10`), Linkwright runs the same check and
+approves the rule only when every link resolves. A mod that needs a newer release line, such as
+21.2 on 21.1, is left alone, since updating the loader is the fix. Set `olderLoaderBuilds = false`
+to turn this off.
 
 ### Duplicate mods
 
@@ -207,7 +213,7 @@ earlier, as a Java agent. Add this JVM argument once:
 - **Prism Launcher or MultiMC:** Edit Instance, Settings, Java tab. Tick "JVM arguments" and add it.
 - **Minecraft Launcher:** Installations, Edit, More Options. Add it to the start of JVM Arguments.
 - **Servers:** add it before `-jar`, for example
-  `java -javaagent:mods/linkwright-fabric-1.3.0.jar -Xmx4G -jar fabric-server-launch.jar nogui`.
+  `java -javaagent:mods/linkwright-fabric-1.3.1.jar -Xmx4G -jar fabric-server-launch.jar nogui`.
 
 If the relative path does not work, use the full path to the jar. Without the argument, the log
 says "Linkwright is installed but not active" along with the exact argument to add.
@@ -227,6 +233,7 @@ Linkwright fixes version rules between mods, not differences between your client
 | `bridgeCalls` | `true` | Apply adapters. When `false`, any changed link is a problem |
 | `ignore` | `[]` | Rules to leave alone, as `"dependent->dependency"`, such as `"somemod->create"` or `"othermod->neoforge"` |
 | `disableDuplicates` | `true` | Disable older copies of a mod that is in the mods folder more than once (see [Duplicate mods](#duplicate-mods)) |
+| `olderLoaderBuilds` | `true` | Check mods that ask for a later build of the installed loader, differing only in the last number (see [Loader version rules](#loader-version-rules)) |
 | `forceApprove` | `[]` | Rules to approve even when problems are found. This can crash the game |
 
 ## Building

@@ -41,6 +41,11 @@ public final class LinkwrightConfig {
             + "# clearly show which came last; otherwise both stay and the report explains why.\n"
             + "disableDuplicates = true\n"
             + "\n"
+            + "# Let a mod that asks for a later build of your loader run on yours, such as NeoForge 21.1.266\n"
+            + "# when 21.1.265 is installed. Only when the versions differ in their last number, and every\n"
+            + "# class, method, field and mixin target the mod uses in the loader checks out.\n"
+            + "olderLoaderBuilds = true\n"
+            + "\n"
             + "# Rules Linkwright should never touch, written as \"dependent->dependency\".\n"
             + "# Example: ignore = [\"somemod->create\", \"othermod->neoforge\"]\n"
             + "ignore = []\n"
@@ -52,18 +57,20 @@ public final class LinkwrightConfig {
     private final Mode mode;
     private final boolean bridgeCalls;
     private final boolean disableDuplicates;
+    private final boolean olderLoaderBuilds;
     private final Set<String> ignore;
     private final Set<String> forceApprove;
 
     public LinkwrightConfig(Mode mode, boolean bridgeCalls, Set<String> ignore, Set<String> forceApprove) {
-        this(mode, bridgeCalls, true, ignore, forceApprove);
+        this(mode, bridgeCalls, true, true, ignore, forceApprove);
     }
 
-    public LinkwrightConfig(Mode mode, boolean bridgeCalls, boolean disableDuplicates, Set<String> ignore,
-                            Set<String> forceApprove) {
+    public LinkwrightConfig(Mode mode, boolean bridgeCalls, boolean disableDuplicates, boolean olderLoaderBuilds,
+                            Set<String> ignore, Set<String> forceApprove) {
         this.mode = mode;
         this.bridgeCalls = bridgeCalls;
         this.disableDuplicates = disableDuplicates;
+        this.olderLoaderBuilds = olderLoaderBuilds;
         this.ignore = Collections.unmodifiableSet(new LinkedHashSet<>(ignore));
         this.forceApprove = Collections.unmodifiableSet(new LinkedHashSet<>(forceApprove));
     }
@@ -78,6 +85,10 @@ public final class LinkwrightConfig {
 
     public boolean disableDuplicates() {
         return disableDuplicates;
+    }
+
+    public boolean olderLoaderBuilds() {
+        return olderLoaderBuilds;
     }
 
     public Set<String> ignore() {
@@ -112,7 +123,9 @@ public final class LinkwrightConfig {
             boolean bridge = !(bridgeValue instanceof Boolean) || (Boolean) bridgeValue;
             Object duplicatesValue = config.get("disableDuplicates");
             boolean duplicates = !(duplicatesValue instanceof Boolean) || (Boolean) duplicatesValue;
-            return new LinkwrightConfig(mode, bridge, duplicates, pairs(config.get("ignore")),
+            Object olderValue = config.get("olderLoaderBuilds");
+            boolean older = !(olderValue instanceof Boolean) || (Boolean) olderValue;
+            return new LinkwrightConfig(mode, bridge, duplicates, older, pairs(config.get("ignore")),
                     pairs(config.get("forceApprove")));
         } catch (Exception e) {
             LwLog.warn("Could not read " + file + " (" + e.getMessage() + "); using defaults");

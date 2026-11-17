@@ -29,6 +29,8 @@ public final class PairReport {
     public final int linksChecked;
     public final int unverifiable;
     public Decision decision;
+    /** The rule is on the loader, and only a later build of it than the installed one meets it. */
+    public boolean olderLoader;
 
     public PairReport(ModEntry dependent, ModEntry dependency, String requiredRange, boolean alreadyOverridden,
                       List<Problem> problems, List<Patch> patches, int linksChecked, int unverifiable) {
