@@ -1,42 +1,26 @@
-<h2>Linkwright 1.2.0</h2>
+<h2>Linkwright 1.3.0</h2>
 
-<h3>New: Loader Version Locks</h3>
+<h3>New: Duplicate Mods Are Fixed Automatically</h3>
 <ul>
-<li>Some mods only accept one exact NeoForge, Forge or Fabric Loader version, often by accident. Linkwright now checks everything such a mod uses in the loader, and lets it run on your newer loader when it all still fits.</li>
-<li>A mod that needs a newer loader than yours is left alone, since updating the loader is the fix.</li>
+<li>When the same mod is in your mods folder twice, usually an old version left behind after an update, Linkwright now keeps the copy you added last and disables the other one.</li>
+<li>It goes by when each file was added, not by version number, so if you deliberately went back to an older version, that is the one it keeps.</li>
+<li>The other copy is renamed to <code>.jar.disabled</code>, never deleted. Launchers like Prism and the CurseForge app show it as a disabled mod, so you can turn it back on with one click.</li>
+<li>This happens before the loader reads your mods folder, so the game starts normally on the same launch. No restart needed.</li>
 </ul>
 
-<h3>New Fixes</h3>
+<h3>Safe by Design</h3>
 <ul>
-<li><strong>Removed parameters:</strong> a method needs fewer inputs than before. Linkwright leaves out the extra ones.</li>
-<li><strong>Wrapped values:</strong> a value is now handed over inside a wrapper, such as a Supplier, Optional or Holder. Linkwright unwraps it.</li>
-<li><strong>Fields and getters:</strong> a field was swapped for a getter or setter method, or the other way around. Linkwright uses whichever one exists now.</li>
-<li><strong>Renamed getters:</strong> a method like <code>getName()</code> was renamed to <code>name()</code>, or back. Linkwright follows the new name.</li>
-<li><strong>Moved classes:</strong> a class moved to another package in the same mod. Linkwright points the mod at its new home.</li>
-<li><strong>Static changes:</strong> a method became static, or stopped being static. Linkwright adjusts the call to match.</li>
-<li><strong>Class and interface changes:</strong> a class became an interface, or the other way around. Linkwright adjusts the call to match.</li>
+<li>If Linkwright can't clearly tell which copy came last, it leaves both and tells you why. For example, when both copies were added at the same time, or on servers that don't record when files were added.</li>
+<li>It never disables a copy that contains a mod the other copy doesn't have.</li>
+<li>On NeoForge 21.9 and newer, the loader has already opened every mod before Linkwright starts, so Linkwright only warns there. NeoForge loads the highest version itself.</li>
 </ul>
 
-<h3>New: Every Fix Is Tested First</h3>
+<h3>New Setting</h3>
 <ul>
-<li>Before the game is allowed to start, each fixed class is checked in memory with a bytecode verifier and then checked again from scratch.</li>
-<li>If a fix would fail, it is not used, and you get the normal error instead of a crash.</li>
+<li><code>disableDuplicates</code> in <code>config/linkwright.toml</code>: set it to <code>false</code> to only get a warning instead.</li>
 </ul>
 
-<h3>Better Detection</h3>
+<h3>Fabric Users</h3>
 <ul>
-<li>Methods and fields that became private are now reported as problems. Before, they could pass the check and crash later.</li>
-<li>Methods that changed between static and non-static are now caught and fixed when possible.</li>
-</ul>
-
-<h3>New Warnings</h3>
-<ul>
-<li><strong>Wrong Java version:</strong> a mod built for a newer Java than the one your game runs on. You now get a clear message in the log and the report, instead of a confusing crash later.</li>
-<li><strong>Duplicate mods:</strong> the same mod in your mods folder twice, usually an old version left behind after an update.</li>
-</ul>
-
-<h3>Other Changes</h3>
-<ul>
-<li>The Forge 1.13.2 to 1.16.5 file now includes the part of ASM that Linkwright needs to test fixes, because Forge 1.13.2 and 1.14.4 don't load it.</li>
-<li>Fabric users: the Java argument now uses the new file name, <code>-javaagent:mods/linkwright-fabric-1.2.0.jar</code></li>
+<li>The Java argument uses the new file name: <code>-javaagent:mods/linkwright-fabric-1.3.0.jar</code></li>
 </ul>

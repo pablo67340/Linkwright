@@ -207,7 +207,7 @@ earlier, as a Java agent. Add this JVM argument once:
 - **Prism Launcher or MultiMC:** Edit Instance, Settings, Java tab. Tick "JVM arguments" and add it.
 - **Minecraft Launcher:** Installations, Edit, More Options. Add it to the start of JVM Arguments.
 - **Servers:** add it before `-jar`, for example
-  `java -javaagent:mods/linkwright-fabric-1.2.0.jar -Xmx4G -jar fabric-server-launch.jar nogui`.
+  `java -javaagent:mods/linkwright-fabric-1.3.0.jar -Xmx4G -jar fabric-server-launch.jar nogui`.
 
 If the relative path does not work, use the full path to the jar. Without the argument, the log
 says "Linkwright is installed but not active" along with the exact argument to add.

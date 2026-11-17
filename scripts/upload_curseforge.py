@@ -40,7 +40,7 @@ MODERN_JAVA = ["Java 8", "Java 16", "Java 17", "Java 21", "Java 25"]
 # "mc": a list of versions, or "1.14+" for every release from that version on.
 JARS = [
     {"key": "universal", "file": "linkwright-{v}.jar", "label": "Forge 1.17+ and NeoForge",
-     "loaders": ["Forge", "NeoForge"], "mc": "1.17+", "java": ["Java 17", "Java 21", "Java 25"]},
+     "loaders": ["Forge", "NeoForge"], "mc": "1.17.1+", "java": ["Java 16", "Java 17", "Java 21", "Java 25"]},
     {"key": "forge-1.13", "file": "linkwright-1.13-1.16.5-{v}.jar", "label": "Forge 1.13.2 to 1.16.5",
      "loaders": ["Forge"], "mc": FORGE_1_13, "java": ["Java 8"]},
     {"key": "forge-1.7", "file": "linkwright-1.7.10-1.12.2-{v}.jar", "label": "Forge 1.7.10 to 1.12.2",
