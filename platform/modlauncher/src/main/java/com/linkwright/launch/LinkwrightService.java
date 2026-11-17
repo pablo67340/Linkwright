@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -46,6 +47,7 @@ public final class LinkwrightService implements ITransformationService {
 
     @Override
     public void initialize(IEnvironment environment) {
+        runCurseforgeSyncFirst(environment);
         Path gameDir = environment.getProperty(IEnvironment.Keys.GAMEDIR.get()).orElse(Paths.get("").toAbsolutePath());
         Dist dist = Dist.fromLaunchTarget(environment.getProperty(IEnvironment.Keys.LAUNCHTARGET.get()).orElse(null));
         if (NeoForgePlatform.present()) {
@@ -60,6 +62,22 @@ public final class LinkwrightService implements ITransformationService {
         // FML lists the mods folder in its scan, after every service has initialized
         Linkwright.prepare(platform);
         tryRelax();
+    }
+
+    /**
+     * CurseforgeSync offers its sync under this key from {@code onLoad}. ModLauncher visits
+     * services in no fixed order, so if Linkwright comes first it runs the sync itself; otherwise
+     * the sync has already happened and the call returns at once. Either way the mods folder is
+     * final before Linkwright reads it.
+     */
+    private static void runCurseforgeSyncFirst(IEnvironment environment) {
+        Optional<Runnable> sync;
+        try {
+            sync = environment.getProperty(IEnvironment.buildKey("curseforgesync.sync", Runnable.class).get());
+        } catch (Throwable t) {
+            return;
+        }
+        sync.ifPresent(Runnable::run);
     }
 
     @Override

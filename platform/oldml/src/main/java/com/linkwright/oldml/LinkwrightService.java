@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -49,6 +50,7 @@ public final class LinkwrightService implements ITransformationService {
 
     @Override
     public void initialize(IEnvironment environment) {
+        runCurseforgeSyncFirst(environment);
         if (!ForgePlatform.present()) {
             LwLog.warn("Linkwright: Forge's loader not found; doing nothing");
             result = Linkwright.Result.EMPTY;
@@ -66,6 +68,23 @@ public final class LinkwrightService implements ITransformationService {
             }
         } catch (Throwable t) {
             LwLog.error("Linkwright could not register its mod locator", t);
+        }
+    }
+
+    /**
+     * CurseforgeSync offers its sync under this key from {@code onLoad}. ModLauncher visits
+     * services in no fixed order, so if Linkwright comes first it runs the sync itself; otherwise
+     * the sync has already happened and the call returns at once.
+     */
+    private static void runCurseforgeSyncFirst(IEnvironment environment) {
+        Optional<Runnable> sync;
+        try {
+            sync = environment.getProperty(IEnvironment.buildKey("curseforgesync.sync", Runnable.class).get());
+        } catch (Throwable t) {
+            return;
+        }
+        if (sync.isPresent()) {
+            sync.get().run();
         }
     }
 

@@ -625,9 +625,14 @@ public final class LinkChecker {
                 break;
             }
         }
-        if (!extendsDependency || hasUnindexedAncestor(direct, ancestors)) {
+        if (!extendsDependency) {
             return;
         }
+        // Minecraft and the loader are indexed, so a supertype missing from the index belongs to a
+        // library or a mod that is not installed. It may implement anything, which leaves an
+        // abstract method nobody indexed implements undecided: refused rather than assumed, and
+        // never bridged, since a bridge would override whatever that supertype really does.
+        String unindexed = unindexedAncestor(direct, ancestors);
         Set<String> concrete = new HashSet<>();
         for (MethodNode m : node.methods) {
             if ((m.access & Opcodes.ACC_ABSTRACT) == 0) {
@@ -647,6 +652,12 @@ public final class LinkChecker {
             }
             for (ClassInfo.Member m : ancestor.methods.values()) {
                 if (m.isAbstract() && !m.isStatic() && !concrete.contains(m.name() + m.desc())) {
+                    if (unindexed != null) {
+                        pass.problem(Problem.Kind.UNIMPLEMENTED, ancestor.name.replace('/', '.') + "." + m.name() + m.desc(),
+                                node.name.replace('/', '.'), "its supertype " + unindexed.replace('/', '.')
+                                        + " is not installed, so whether it implements this cannot be checked");
+                        continue;
+                    }
                     BridgeFinder.Outcome outcome = bridgeFinder.findImplementation(node, m);
                     if (outcome instanceof BridgeFinder.Found) {
                         addPatch(pass, node.name + "|impl|" + m.name() + m.desc(), ((BridgeFinder.Found) outcome).patch);
@@ -660,21 +671,21 @@ public final class LinkChecker {
         }
     }
 
-    /** Minecraft or another unindexed supertype could be supplying the implementation. */
-    private boolean hasUnindexedAncestor(List<String> direct, List<ClassInfo> ancestors) {
+    /** The first supertype that is neither indexed nor in the JDK, or {@code null} when there is none. */
+    private String unindexedAncestor(List<String> direct, List<ClassInfo> ancestors) {
         for (String sup : direct) {
             if (!index.contains(sup) && !Hierarchy.isJdkName(sup)) {
-                return true;
+                return sup;
             }
         }
         for (ClassInfo ancestor : ancestors) {
             for (String sup : ancestor.supertypes()) {
                 if (!index.contains(sup) && !Hierarchy.isJdkName(sup)) {
-                    return true;
+                    return sup;
                 }
             }
         }
-        return false;
+        return null;
     }
 
     private static Set<String> classesIn(ModJar jar) throws IOException {

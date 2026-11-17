@@ -192,8 +192,11 @@ for this reason, since Forge 1.13.2 and 1.14.4 do not put it on the classpath.
   name, and only inside the dependency's own package tree.
 
 Links that lead into libraries Linkwright cannot see (for example DataFixerUpper or fastutil) are
-assumed present and counted separately in the report. Calls made from mixin classes, or through
-method handles, can be verified but not adapted.
+assumed present and counted separately in the report. The one exception is a class that has to
+implement one of the dependency's abstract methods: if one of its supertypes comes from a mod that
+is not installed, nobody can tell whether that supertype implements the method, so the rule is
+refused. Calls made from mixin classes, or through method handles, can be verified but not
+adapted.
 
 ## Installing
 
@@ -217,6 +220,13 @@ earlier, as a Java agent. Add this JVM argument once:
 
 If the relative path does not work, use the full path to the jar. Without the argument, the log
 says "Linkwright is installed but not active" along with the exact argument to add.
+
+### With CurseforgeSync
+
+On Forge and NeoForge (before 21.9), Linkwright waits for
+[CurseforgeSync](https://www.curseforge.com/minecraft/mc-mods/curseforgesync) to finish syncing the
+mods folder before it checks anything, so a server that downloads its mods on first boot is checked
+with the full set. This needs CurseforgeSync 1.2.0 or later.
 
 ### Client and server
 

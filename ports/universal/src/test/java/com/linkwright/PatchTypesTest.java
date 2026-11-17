@@ -314,4 +314,27 @@ class PatchTypesTest {
         assertEquals("circle", runApproved());
         assertTrue(report().patches.get(0).describe().contains("now an interface"), report().patches.toString());
     }
+
+    @Test
+    void refusesAnImplementationWhenASupertypeIsNotInstalled() throws Exception {
+        String named = "package b; public interface Named { String getName(); }";
+        Map<String, byte[]> old = TestMods.compile(temp, Map.of("b.Named", named), Map.of());
+        modbNew = TestMods.compile(temp, Map.of("b.Named", "package b; public interface Named { String name(); }"), Map.of());
+        Map<String, byte[]> classpath = new java.util.HashMap<>(old);
+        classpath.putAll(TestMods.compile(temp, Map.of("c.Base", "package c; public class Base { public String name() { return \"base\"; } }"), Map.of()));
+        moda = TestMods.compile(temp, Map.of("a.User", """
+                package a;
+                public class User extends c.Base implements b.Named {
+                    public String getName() { return "user"; }
+                }"""), classpath);
+        Path mods = Files.createDirectories(temp.resolve("mods"));
+        TestMods.jar(mods.resolve("modb.jar"), modbNew, TestMods.toml("modb", "3.0", ""), Map.of());
+        TestMods.jar(mods.resolve("moda.jar"), moda,
+                TestMods.toml("moda", "1.0", TestMods.requires("moda", "modb", "[1,2)")), Map.of());
+        analysis = Linkwright.analyze(new TestPlatform(mods), LinkwrightConfig.defaults());
+
+        assertEquals(PairReport.Decision.REFUSED, report().decision);
+        assertTrue(report().problems.toString().contains("c.Base is not installed"), report().problems.toString());
+        assertEquals(0, count(ImplBridge.class));
+    }
 }
